@@ -177,24 +177,24 @@ tr:hover td { background:var(--card-hover); }
   </div>
   <div class="g3">
     <div class="card scenario best"><h3>Cenario Perfeito</h3><div class="sc-sub">100% dos pendentes liquidam</div><div class="sc-value" id="scBest">-</div><div class="sc-sub" id="scBestSub"></div></div>
-    <div class="card scenario mid"><h3>Cenario Realista</h3><div class="sc-sub">Aplica taxa cancel historica</div><div class="sc-value" id="scMid">-</div><div class="sc-sub" id="scMidSub"></div></div>
-    <div class="card scenario worst"><h3>Cenario Pessimista</h3><div class="sc-sub">Cancel 20% acima do historico</div><div class="sc-value" id="scWorst">-</div><div class="sc-sub" id="scWorstSub"></div></div>
+    <div class="card scenario mid"><h3>Cenario Realista</h3><div class="sc-sub">Aplica taxa ineleg. historica</div><div class="sc-value" id="scMid">-</div><div class="sc-sub" id="scMidSub"></div></div>
+    <div class="card scenario worst"><h3>Cenario Pessimista</h3><div class="sc-sub">Ineleg. 20% acima do historico</div><div class="sc-value" id="scWorst">-</div><div class="sc-sub" id="scWorstSub"></div></div>
   </div>
 </div>
 
-<!-- Cancelamentos -->
+<!-- Inelegiveis -->
 <div class="section">
-  <div class="stitle">Cancelamentos e Reembolsos</div>
+  <div class="stitle">Inelegiveis e Reembolsos</div>
   <div class="g2">
-    <div class="card"><h3>Taxa de Cancelamento por Mes</h3><canvas id="cCancelMes"></canvas></div>
-    <div class="card"><h3>Cancelados: Reembolso vs Outros</h3><canvas id="cCancelTipo"></canvas></div>
+    <div class="card"><h3>Taxa de Inelegiveis por Mes</h3><canvas id="cCancelMes"></canvas></div>
+    <div class="card"><h3>Inelegiveis: Reembolso vs Outros</h3><canvas id="cCancelTipo"></canvas></div>
   </div>
 </div>
 
 <!-- Lojas -->
 <div class="section">
   <div class="stitle">Top Lojas</div>
-  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Cancel.</th><th class="r">Reembolso</th></tr></thead><tbody id="tLojas"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Ineleg.</th><th class="r">Reembolso</th></tr></thead><tbody id="tLojas"></tbody></table></div>
 </div>
 
 <!-- Top Conteudos -->
@@ -206,12 +206,12 @@ tr:hover td { background:var(--card-hover); }
 <!-- Produtos -->
 <div class="section">
   <div class="stitle" style="color:var(--red)">Produtos que Nao Compensam</div>
-  <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Cancel.</th><th class="r">GMV Perdido</th></tr></thead><tbody id="tBad"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Ineleg.</th><th class="r">GMV Perdido</th></tr></thead><tbody id="tBad"></tbody></table></div>
 </div>
 
 <div class="section">
   <div class="stitle" style="color:var(--green)">Top Produtos</div>
-  <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Cancel.</th><th class="r">Liquidado</th></tr></thead><tbody id="tGood"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Ineleg.</th><th class="r">Liquidado</th></tr></thead><tbody id="tGood"></tbody></table></div>
 </div>
 
 </div>
@@ -233,7 +233,7 @@ const O='#E8551B',T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',OA='
 const MONTHS = ['01','02','03','04','05'];
 const MLABEL = {all:'Todos','01':'Jan','02':'Fev','03':'Mar','04':'Abr','05':'Mai'};
 const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'];
-const STLABEL = ['Liquidado','Cancelado','Pendente','Awaiting'];
+const STLABEL = ['Liquidado','Inelegível','Pendente','Aguardando Pagamento'];
 
 function fmt(n){return 'R$ '+(n/1000).toFixed(0)+'k';}
 function fmtR(n){return 'R$ '+Math.round(n).toLocaleString('pt-BR');}
@@ -297,7 +297,7 @@ function renderKPIs() {
     <div class="kpi"><div class="kpi-v">R$ ${median.toFixed(0)}</div><div class="kpi-l">Ticket Mediano</div></div>
     <div class="kpi"><div class="kpi-v">${lojas}</div><div class="kpi-l">Lojas</div></div>
     <div class="kpi"><div class="kpi-v">${lives} / ${videos}</div><div class="kpi-l">Lives / Videos</div></div>
-    <div class="kpi"><div class="kpi-v">${taxaCancel}%</div><div class="kpi-l">Taxa Cancel.</div></div>
+    <div class="kpi"><div class="kpi-v">${taxaCancel}%</div><div class="kpi-l">Taxa Ineleg.</div></div>
     <div class="kpi"><div class="kpi-v">${taxaReemb}%</div><div class="kpi-l">Taxa Reembolso</div></div>
     <div class="kpi"><div class="kpi-v">${fmtR(recebido)}</div><div class="kpi-l">Comissao Recebida</div></div>
   `;
@@ -493,24 +493,24 @@ function renderScenarios(){
     document.getElementById('scBest').textContent=f2(best);
     document.getElementById('scBestSub').textContent=`Recebido ${f2(rec)} + Pendente ${f2(pendEst)}`;
     document.getElementById('scMid').textContent=f2(mid);
-    document.getElementById('scMidSub').textContent=`Cancel ${(taxaC*100).toFixed(1)}% | Perde ${f2(pendEst*taxaC)}`;
+    document.getElementById('scMidSub').textContent=`Ineleg. ${(taxaC*100).toFixed(1)}% | Perde ${f2(pendEst*taxaC)}`;
     document.getElementById('scWorst').textContent=f2(worst);
-    document.getElementById('scWorstSub').textContent=`Cancel ${(taxaC*150).toFixed(1)}% | Perde ${f2(pendEst*taxaC*1.5)}`;
+    document.getElementById('scWorstSub').textContent=`Ineleg. ${(taxaC*150).toFixed(1)}% | Perde ${f2(pendEst*taxaC*1.5)}`;
   } else {
     // Tudo ja baixado: mostrar resultado real vs potencial
     document.getElementById('scBest').textContent=f2(estTotal);
-    document.getElementById('scBestSub').textContent='Se 0% cancelamento';
+    document.getElementById('scBestSub').textContent='Se 0% inelegiveis';
     document.getElementById('scMid').textContent=f2(rec);
     document.getElementById('scMidSub').textContent=`Comissao efetiva recebida`;
     document.getElementById('scWorst').textContent=f2(perdido);
-    document.getElementById('scWorstSub').textContent=`Perdido por cancelamentos (${(taxaC*100).toFixed(1)}%)`;
+    document.getElementById('scWorstSub').textContent=`Perdido por inelegiveis (${(taxaC*100).toFixed(1)}%)`;
   }
   // Update card labels
   const cards=document.querySelectorAll('.scenario h3');
   if(!hasPend && cards.length>=3){
     cards[0].textContent='Potencial Maximo';
     cards[1].textContent='Comissao Real';
-    cards[2].textContent='Perdido em Cancelamentos';
+    cards[2].textContent='Perdido em Inelegiveis';
   } else if(cards.length>=3){
     cards[0].textContent='Cenario Perfeito';
     cards[1].textContent='Cenario Realista';
@@ -528,7 +528,7 @@ function renderCancelMes(){
   makeChart('cCancelMes',{
     type:'line',
     data:{labels:ms.map(m=>MLABEL[m]||m),datasets:[{
-      label:'Taxa Cancel %',
+      label:'Taxa Ineleg. %',
       data:ms.map(m=>{const t=byM[m].liq+byM[m].can;return t?+(byM[m].can/t*100).toFixed(1):0;}),
       borderColor:R,backgroundColor:R,pointRadius:6,tension:0.3
     }]},
@@ -541,7 +541,7 @@ function renderCancelTipo(){
   const semReemb=filtered.filter(r=>r[5]===1&&r[11]===0).length;
   makeChart('cCancelTipo',{
     type:'doughnut',
-    data:{labels:[`Devolveram (${comReemb})`,`Cancelaram antes (${semReemb})`],datasets:[{data:[comReemb,semReemb],backgroundColor:[R,O]}]},
+    data:{labels:[`Com reembolso (${comReemb})`,`Sem reembolso (${semReemb})`],datasets:[{data:[comReemb,semReemb],backgroundColor:[R,O]}]},
     options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
   });
 }
