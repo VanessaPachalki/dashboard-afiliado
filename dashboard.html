@@ -476,20 +476,46 @@ function renderStatus(){
 
 function renderScenarios(){
   const rec=filtered.reduce((s,r)=>s+r[13],0);
+  const estTotal=filtered.reduce((s,r)=>s+r[12],0);
   const pendEst=filtered.filter(r=>r[5]>=2).reduce((s,r)=>s+r[12],0);
+  const perdido=filtered.filter(r=>r[5]===1).reduce((s,r)=>s+r[12],0);
   const baixados=filtered.filter(r=>r[5]<=1);
   const taxaC=baixados.length?baixados.filter(r=>r[5]===1).length/baixados.length:0.31;
 
-  const best=rec+pendEst;
-  const mid=rec+pendEst*(1-taxaC);
-  const worst=rec+pendEst*(1-taxaC*1.2);
+  const hasPend=pendEst>0;
+  const f2=n=>'R$ '+n.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 
-  document.getElementById('scBest').textContent=fmtR(best);
-  document.getElementById('scBestSub').textContent=`Recebido ${fmtR(rec)} + Pendente ${fmtR(pendEst)}`;
-  document.getElementById('scMid').textContent=fmtR(mid);
-  document.getElementById('scMidSub').textContent=`Cancel historica ${(taxaC*100).toFixed(0)}%`;
-  document.getElementById('scWorst').textContent=fmtR(worst);
-  document.getElementById('scWorstSub').textContent=`Cancel ${(taxaC*120).toFixed(0)}%`;
+  if(hasPend){
+    // Tem pendentes: projetar cenarios
+    const best=rec+pendEst;
+    const mid=rec+pendEst*(1-taxaC);
+    const worst=rec+pendEst*(1-taxaC*1.5);
+    document.getElementById('scBest').textContent=f2(best);
+    document.getElementById('scBestSub').textContent=`Recebido ${f2(rec)} + Pendente ${f2(pendEst)}`;
+    document.getElementById('scMid').textContent=f2(mid);
+    document.getElementById('scMidSub').textContent=`Cancel ${(taxaC*100).toFixed(1)}% | Perde ${f2(pendEst*taxaC)}`;
+    document.getElementById('scWorst').textContent=f2(worst);
+    document.getElementById('scWorstSub').textContent=`Cancel ${(taxaC*150).toFixed(1)}% | Perde ${f2(pendEst*taxaC*1.5)}`;
+  } else {
+    // Tudo ja baixado: mostrar resultado real vs potencial
+    document.getElementById('scBest').textContent=f2(estTotal);
+    document.getElementById('scBestSub').textContent='Se 0% cancelamento';
+    document.getElementById('scMid').textContent=f2(rec);
+    document.getElementById('scMidSub').textContent=`Comissao efetiva recebida`;
+    document.getElementById('scWorst').textContent=f2(perdido);
+    document.getElementById('scWorstSub').textContent=`Perdido por cancelamentos (${(taxaC*100).toFixed(1)}%)`;
+  }
+  // Update card labels
+  const cards=document.querySelectorAll('.scenario h3');
+  if(!hasPend && cards.length>=3){
+    cards[0].textContent='Potencial Maximo';
+    cards[1].textContent='Comissao Real';
+    cards[2].textContent='Perdido em Cancelamentos';
+  } else if(cards.length>=3){
+    cards[0].textContent='Cenario Perfeito';
+    cards[1].textContent='Cenario Realista';
+    cards[2].textContent='Cenario Pessimista';
+  }
 }
 
 function renderCancelMes(){
