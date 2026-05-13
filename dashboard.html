@@ -202,7 +202,8 @@ tr:hover td { background:var(--card-hover); }
 <!-- Lojas -->
 <div class="section">
   <div class="stitle">Top Lojas</div>
-  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Ineleg.</th><th class="r">Reembolso</th></tr></thead><tbody id="tLojas"></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Liquidados</th><th class="r">Ineleg.</th><th class="r">Reembolso</th></tr></thead><tbody id="tLojas"></tbody></table></div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;">* Baseado apenas nos pedidos ja baixados — maioria ainda pendente.</div>
 </div>
 
 <!-- Top Conteudos -->
@@ -220,6 +221,7 @@ tr:hover td { background:var(--card-hover); }
 <div class="section">
   <div class="stitle" style="color:var(--green)">Top Produtos</div>
   <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Ineleg.</th><th class="r">Liquidado</th></tr></thead><tbody id="tGood"></tbody></table></div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;">* Baseado apenas nos pedidos ja baixados — maioria ainda pendente.</div>
 </div>
 
 </div>
@@ -557,8 +559,9 @@ function renderCancelTipo(){
 function renderLojas(){
   const lj={};
   filtered.forEach(r=>{
-    const n=r[7];if(!lj[n])lj[n]={p:0,g:0,iv:0,ir:0,can:0,bx:0};
+    const n=r[7];if(!lj[n])lj[n]={p:0,g:0,iv:0,ir:0,can:0,liq:0,bx:0};
     lj[n].p++;lj[n].g+=r[4];lj[n].iv+=r[10];lj[n].ir+=r[11];
+    if(r[5]===0)lj[n].liq++;
     if(r[5]===1)lj[n].can++;
     if(r[5]<=1)lj[n].bx++;
   });
@@ -568,9 +571,11 @@ function renderLojas(){
     const [n,v]=e;
     const txC=v.bx?(v.can/v.bx*100).toFixed(1):0;
     const txR=v.iv?(v.ir/v.iv*100).toFixed(1):0;
+    const pend=v.p-v.bx;
+    const ast=v.bx>0&&pend/v.p>0.5?'*':'';
     const gmvArr=filtered.filter(r=>r[7]===n).map(r=>r[4]).sort((a,b)=>a-b);
     const med=gmvArr[Math.floor(gmvArr.length/2)]||0;
-    return `<tr><td>${i+1}</td><td><strong>${n}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r ${txC>33?'bad':''}">${txC}%</td><td class="r ${txR>3.7?'bad':''}">${txR}%</td></tr>`;
+    return `<tr><td>${i+1}</td><td><strong>${n}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r">${v.liq}</td><td class="r ${txC>33?'bad':''}">${txC}%${ast}</td><td class="r ${txR>3.7?'bad':''}">${txR}%</td></tr>`;
   }).join('');
 }
 
@@ -612,11 +617,21 @@ function renderProducts(){
     return tc>33 && tr>avgReemb;
   }).sort((a,b)=>(b.g*b.can/(b.can+b.liq))-(a.g*a.can/(a.can+a.liq))).slice(0,12);
 
+  // count pending per product for asterisk
+  const pendProd={};
+  filtered.filter(r=>r[5]>=2).forEach(r=>{
+    const k=r[8]+'|||'+r[7];
+    pendProd[k]=(pendProd[k]||0)+1;
+  });
+
   document.getElementById('tBad').innerHTML=bad.map(p=>{
     const tc=(p.can/(p.can+p.liq)*100).toFixed(1);
     const tr=(p.ir/p.iv*100).toFixed(1);
     const lost=Math.round(p.g*p.can/(p.can+p.liq));
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r bad">${tr}%</td><td class="r bad">${tc}%</td><td class="r bad">${fmtR(lost)}</td></tr>`;
+    const k=p.n+'|||'+p.lj;
+    const total=p.can+p.liq+(pendProd[k]||0);
+    const ast=total>0&&(pendProd[k]||0)/total>0.5?'*':'';
+    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r bad">${tr}%</td><td class="r bad">${tc}%${ast}</td><td class="r bad">${fmtR(lost)}</td></tr>`;
   }).join('');
 
   // Good: cancel < avg AND reembolso <= avg
@@ -630,7 +645,10 @@ function renderProducts(){
     const tc=(p.can/(p.can+p.liq)*100).toFixed(1);
     const tr=(p.ir/p.iv*100).toFixed(1);
     const tl=(p.liq/(p.can+p.liq)*100).toFixed(1);
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r good">${tr}%</td><td class="r">${tc}%</td><td class="r good">${tl}%</td></tr>`;
+    const k=p.n+'|||'+p.lj;
+    const total=p.can+p.liq+(pendProd[k]||0);
+    const ast=total>0&&(pendProd[k]||0)/total>0.5?'*':'';
+    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r good">${tr}%</td><td class="r">${tc}%${ast}</td><td class="r good">${tl}%${ast}</td></tr>`;
   }).join('');
 }
 </script>
