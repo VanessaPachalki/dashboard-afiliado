@@ -96,6 +96,22 @@ tr:hover td { background:var(--card-hover); }
 /* CALLOUT */
 .callout { background:#E8551B10; border-left:3px solid var(--orange); border-radius:0 8px 8px 0; padding:12px 16px; margin-bottom:20px; font-size:12px; color:var(--cream); }
 
+/* MATURITY BAR */
+.maturity { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:20px; display:none; }
+.maturity-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:8px; }
+.maturity-bar { height:8px; border-radius:4px; background:#1a1a1a; overflow:hidden; display:flex; }
+.maturity-bar .seg { height:100%; transition:width 0.4s; }
+.maturity-info { display:flex; gap:16px; margin-top:8px; font-size:11px; color:var(--muted); }
+.maturity-info span { display:flex; align-items:center; gap:4px; }
+.maturity-info .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+
+/* MINI PROGRESS */
+.mini-bar { display:inline-block; width:48px; height:6px; border-radius:3px; background:#1a1a1a; overflow:hidden; vertical-align:middle; margin-left:4px; }
+.mini-bar .fill { height:100%; border-radius:3px; }
+
+/* DIM unreliable */
+.dim { opacity:0.4; }
+
 /* INSIGHT PILLS */
 .insights { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; }
 .ins {
@@ -142,6 +158,13 @@ tr:hover td { background:var(--card-hover); }
 
 <!-- KPIs -->
 <div class="kpi-row" id="kpis"></div>
+
+<!-- Maturity -->
+<div class="maturity" id="maturity">
+  <div class="maturity-label">Maturidade dos Pedidos</div>
+  <div class="maturity-bar" id="matBar"></div>
+  <div class="maturity-info" id="matInfo"></div>
+</div>
 
 <!-- Insights -->
 <div class="insights" id="insights"></div>
@@ -202,8 +225,8 @@ tr:hover td { background:var(--card-hover); }
 <!-- Lojas -->
 <div class="section">
   <div class="stitle">Top Lojas</div>
-  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Liquidados</th><th class="r">Ineleg.</th><th class="r">Reembolso</th></tr></thead><tbody id="tLojas"></tbody></table></div>
-  <div style="font-size:10px;color:var(--muted);margin-top:6px;">* Baseado apenas nos pedidos ja baixados — maioria ainda pendente.</div>
+  <div class="tbl"><table><thead><tr><th>#</th><th>Loja</th><th class="r">Pedidos</th><th class="r">GMV</th><th class="r">Ticket Med.</th><th class="r">Liquidados</th><th class="r">Ineleg.</th><th class="r">Reembolso</th><th class="r">Baixados</th></tr></thead><tbody id="tLojas"></tbody></table></div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;">Taxas esmaecidas indicam amostra pequena (menos de 50% baixados). Veja a coluna "Baixados".</div>
 </div>
 
 <!-- Top Conteudos -->
@@ -221,7 +244,7 @@ tr:hover td { background:var(--card-hover); }
 <div class="section">
   <div class="stitle" style="color:var(--green)">Top Produtos</div>
   <div class="tbl"><table><thead><tr><th>Produto</th><th>Loja</th><th class="r">Vendidos</th><th class="r">Reemb.</th><th class="r">Ineleg.</th><th class="r">Liquidado</th></tr></thead><tbody id="tGood"></tbody></table></div>
-  <div style="font-size:10px;color:var(--muted);margin-top:6px;">* Baseado apenas nos pedidos ja baixados — maioria ainda pendente.</div>
+  <div style="font-size:10px;color:var(--muted);margin-top:6px;">Taxas esmaecidas indicam amostra pequena (menos de 50% baixados).</div>
 </div>
 
 </div>
@@ -264,6 +287,7 @@ const _D=[["05", "2026-05-11", 15, 0, 73.2, 2, 0, "EVELYN QQ", "Conjunto de Tern
 })(_D);
 
 function render(month) {
+  renderMaturity();
   renderKPIs();
   renderInsights(month);
   renderWeekly(month);
@@ -283,8 +307,44 @@ function render(month) {
   renderProducts();
 }
 
+function maturityPct(){
+  const d=filtered;
+  const total=d.length;
+  if(!total) return {liq:0,inel:0,pend:0,aw:0,pctBaixado:100,parcial:false};
+  const liq=d.filter(r=>r[5]===0).length;
+  const inel=d.filter(r=>r[5]===1).length;
+  const pend=d.filter(r=>r[5]===2).length;
+  const aw=d.filter(r=>r[5]===3).length;
+  const baixado=liq+inel;
+  const pctBaixado=baixado/total*100;
+  return {liq,inel,pend,aw,total,baixado,pctBaixado,parcial:pctBaixado<80};
+}
+
+function renderMaturity(){
+  const m=maturityPct();
+  const el=document.getElementById('maturity');
+  if(!m.total){el.style.display='none';return;}
+  el.style.display='block';
+  const pL=(m.liq/m.total*100).toFixed(1);
+  const pI=(m.inel/m.total*100).toFixed(1);
+  const pP=(m.pend/m.total*100).toFixed(1);
+  const pA=(m.aw/m.total*100).toFixed(1);
+  document.getElementById('matBar').innerHTML=`
+    <div class="seg" style="width:${pL}%;background:var(--green)"></div>
+    <div class="seg" style="width:${pI}%;background:var(--red)"></div>
+    <div class="seg" style="width:${pA}%;background:var(--orange)"></div>
+    <div class="seg" style="width:${pP}%;background:#444"></div>`;
+  document.getElementById('matInfo').innerHTML=`
+    <span><span class="dot" style="background:var(--green)"></span>Liquidado ${m.liq}</span>
+    <span><span class="dot" style="background:var(--red)"></span>Inelegivel ${m.inel}</span>
+    <span><span class="dot" style="background:var(--orange)"></span>Aguardando ${m.aw}</span>
+    <span><span class="dot" style="background:#444"></span>Pendente ${m.pend}</span>
+    <span style="margin-left:auto;color:${m.parcial?'var(--orange)':'var(--green)'};font-weight:700;">${m.pctBaixado.toFixed(0)}% baixados</span>`;
+}
+
 function renderKPIs() {
   const d=filtered;
+  const m=maturityPct();
   const gmv=d.reduce((s,r)=>s+r[4],0);
   const ped=d.length;
   const gmvArr=d.map(r=>r[4]).sort((a,b)=>a-b);
@@ -300,6 +360,7 @@ function renderKPIs() {
   const vendidos=d.reduce((s,r)=>s+r[10],0);
   const taxaReemb=vendidos?(reemb/vendidos*100).toFixed(1):0;
   const recebido=d.reduce((s,r)=>s+r[13],0);
+  const parcial=m.parcial?'<div style="font-size:9px;color:var(--orange);margin-top:2px;">parcial</div>':'';
 
   document.getElementById('kpis').innerHTML=`
     <div class="kpi main"><div class="kpi-v">${fmtR(gmv)}</div><div class="kpi-l">GMV Gerado</div></div>
@@ -307,7 +368,7 @@ function renderKPIs() {
     <div class="kpi"><div class="kpi-v">R$ ${median.toFixed(0)}</div><div class="kpi-l">Ticket Mediano</div></div>
     <div class="kpi"><div class="kpi-v">${lojas}</div><div class="kpi-l">Lojas</div></div>
     <div class="kpi"><div class="kpi-v">${lives} / ${videos}</div><div class="kpi-l">Lives / Videos</div></div>
-    <div class="kpi"><div class="kpi-v">${taxaCancel}%</div><div class="kpi-l">Taxa Ineleg.</div></div>
+    <div class="kpi"><div class="kpi-v">${taxaCancel}%${parcial}</div><div class="kpi-l">Taxa Ineleg.</div></div>
     <div class="kpi"><div class="kpi-v">${taxaReemb}%</div><div class="kpi-l">Taxa Reembolso</div></div>
     <div class="kpi"><div class="kpi-v">${fmtR(recebido)}</div><div class="kpi-l">Comissao Recebida</div></div>
   `;
@@ -571,11 +632,14 @@ function renderLojas(){
     const [n,v]=e;
     const txC=v.bx?(v.can/v.bx*100).toFixed(1):0;
     const txR=v.iv?(v.ir/v.iv*100).toFixed(1):0;
-    const pend=v.p-v.bx;
-    const ast=v.bx>0&&pend/v.p>0.5?'*':'';
+    const pctBx=v.p?(v.bx/v.p*100):100;
+    const isDim=pctBx<50;
+    const dimCls=isDim?' dim':'';
+    const barColor=pctBx>=80?'var(--green)':pctBx>=50?'var(--orange)':'var(--red)';
+    const miniBar=`<span class="mini-bar"><span class="fill" style="width:${pctBx.toFixed(0)}%;background:${barColor}"></span></span>`;
     const gmvArr=filtered.filter(r=>r[7]===n).map(r=>r[4]).sort((a,b)=>a-b);
     const med=gmvArr[Math.floor(gmvArr.length/2)]||0;
-    return `<tr><td>${i+1}</td><td><strong>${n}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r">${v.liq}</td><td class="r ${txC>33?'bad':''}">${txC}%${ast}</td><td class="r ${txR>3.7?'bad':''}">${txR}%</td></tr>`;
+    return `<tr><td>${i+1}</td><td><strong>${n}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r">${v.liq}</td><td class="r${dimCls} ${txC>33?'bad':''}">${txC}%</td><td class="r${dimCls} ${txR>3.7?'bad':''}">${txR}%</td><td class="r">${v.bx}/${v.p} ${miniBar}</td></tr>`;
   }).join('');
 }
 
@@ -630,8 +694,9 @@ function renderProducts(){
     const lost=Math.round(p.g*p.can/(p.can+p.liq));
     const k=p.n+'|||'+p.lj;
     const total=p.can+p.liq+(pendProd[k]||0);
-    const ast=total>0&&(pendProd[k]||0)/total>0.5?'*':'';
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r bad">${tr}%</td><td class="r bad">${tc}%${ast}</td><td class="r bad">${fmtR(lost)}</td></tr>`;
+    const isDim=total>0&&(pendProd[k]||0)/total>0.5;
+    const d=isDim?' dim':'';
+    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r bad${d}">${tr}%</td><td class="r bad${d}">${tc}%</td><td class="r bad${d}">${fmtR(lost)}</td></tr>`;
   }).join('');
 
   // Good: cancel < avg AND reembolso <= avg
@@ -647,8 +712,9 @@ function renderProducts(){
     const tl=(p.liq/(p.can+p.liq)*100).toFixed(1);
     const k=p.n+'|||'+p.lj;
     const total=p.can+p.liq+(pendProd[k]||0);
-    const ast=total>0&&(pendProd[k]||0)/total>0.5?'*':'';
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r good">${tr}%</td><td class="r">${tc}%${ast}</td><td class="r good">${tl}%${ast}</td></tr>`;
+    const isDim=total>0&&(pendProd[k]||0)/total>0.5;
+    const d=isDim?' dim':'';
+    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r good${d}">${tr}%</td><td class="r${d}">${tc}%</td><td class="r good${d}">${tl}%</td></tr>`;
   }).join('');
 }
 </script>
