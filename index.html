@@ -64,9 +64,12 @@ async function handleGoogle() {
       .from('approved_emails')
       .select('role')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (!approved) {
+      // Registrar tentativa bloqueada antes de deslogar
+      const { error: logErr } = await sb.from('login_attempts').insert({ email });
+      console.log('login_attempt insert:', logErr ? logErr : 'ok');
       await sb.auth.signOut();
       const msg = document.getElementById('msg');
       msg.className = 'msg msg-err';

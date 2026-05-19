@@ -3,7 +3,73 @@
 // ================================================
 
 async function loadAdmin() {
-  await Promise.all([loadEmails(), loadAccounts(), loadAffiliates(), loadAllUploads()]);
+  // Carregar cada seção independente - se uma falhar não trava as outras
+  loadLoginAttempts().catch(e => console.error('loadLoginAttempts erro:', e));
+  loadEmails().catch(e => console.error('loadEmails erro:', e));
+  loadAccounts().catch(e => console.error('loadAccounts erro:', e));
+  loadAffiliates().catch(e => console.error('loadAffiliates erro:', e));
+  loadAllUploads().catch(e => console.error('loadAllUploads erro:', e));
+}
+
+// ===== LOGIN ATTEMPTS =====
+
+async function loadLoginAttempts() {
+  const { data, error } = await sb
+    .from('login_attempts')
+    .select('*')
+    .order('attempted_at', { ascending: false });
+
+  console.log('login_attempts data:', data, 'error:', error);
+  const tb = document.getElementById('tAttempts');
+  if (error || !data?.length) {
+    tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;">Nenhuma tentativa bloqueada.</td></tr>';
+    return;
+  }
+
+  // Agrupar por email: mostrar última tentativa e total
+  const grouped = {};
+  data.forEach(a => {
+    if (!grouped[a.email]) grouped[a.email] = { count: 0, last: a.attempted_at };
+    grouped[a.email].count++;
+    if (a.attempted_at > grouped[a.email].last) grouped[a.email].last = a.attempted_at;
+  });
+
+  const sorted = Object.entries(grouped).sort((a, b) => b[1].last.localeCompare(a[1].last));
+
+  tb.innerHTML = sorted.map(([email, info]) => {
+    const date = new Date(info.last).toLocaleString('pt-BR');
+    const countStyle = info.count >= 3 ? 'color:var(--orange);font-weight:700;' : '';
+    return `<tr>
+      <td>${esc(email)}</td>
+      <td>${date}</td>
+      <td class="r" style="${countStyle}">${info.count}x</td>
+      <td>
+        <button class="btn-sm" style="font-size:11px;" data-email="${escAttr(email)}">Liberar</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  tb.querySelectorAll('.btn-sm').forEach(btn => {
+    btn.addEventListener('click', () => quickApproveFromAttempt(btn.dataset.email));
+  });
+}
+
+async function quickApproveFromAttempt(email) {
+  if (!confirm(`Liberar ${email} como afiliado?`)) return;
+
+  const { error } = await sb.from('approved_emails').insert({
+    email, role: 'affiliate', display_name: null
+  });
+
+  if (error) {
+    if (error.code === '23505') alert('Este e-mail já está cadastrado.');
+    else alert('Erro: ' + error.message);
+    return;
+  }
+
+  // Limpar tentativas desse email
+  await sb.from('login_attempts').delete().eq('email', email);
+  await Promise.all([loadLoginAttempts(), loadEmails()]);
 }
 
 // ===== EMAILS =====

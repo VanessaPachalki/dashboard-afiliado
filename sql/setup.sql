@@ -149,7 +149,31 @@ create policy "storage_delete" on storage.objects
   );
 
 -- ================================================
--- 6. Seed: adicionar Vanessa como admin
+-- 6. Tabela de tentativas de login bloqueadas
+-- ================================================
+
+create table public.login_attempts (
+  id bigint generated always as identity primary key,
+  email text not null,
+  attempted_at timestamptz default now()
+);
+
+alter table public.login_attempts enable row level security;
+
+-- Qualquer usuário autenticado pode inserir (registrar sua própria tentativa)
+create policy "login_attempts_insert" on public.login_attempts
+  for insert with check (auth.role() = 'authenticated');
+
+-- Só admin pode ver
+create policy "login_attempts_select" on public.login_attempts
+  for select using (public.is_admin());
+
+-- Só admin pode deletar
+create policy "login_attempts_delete" on public.login_attempts
+  for delete using (public.is_admin());
+
+-- ================================================
+-- 7. Seed: adicionar Vanessa como admin
 -- TROQUE pelo seu email real!
 -- ================================================
 insert into public.approved_emails (email, role, display_name)

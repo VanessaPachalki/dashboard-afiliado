@@ -19,7 +19,7 @@ async function requireAuth() {
     .from('approved_emails')
     .select('email')
     .eq('email', session.user.email)
-    .single();
+    .maybeSingle();
 
   if (!approved) {
     await sb.auth.signOut();
@@ -37,7 +37,7 @@ async function getUserRole() {
     .from('approved_emails')
     .select('role, display_name')
     .eq('email', session.user.email)
-    .single();
+    .maybeSingle();
   return data;
 }
 
