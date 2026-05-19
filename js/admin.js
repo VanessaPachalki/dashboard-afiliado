@@ -26,13 +26,16 @@ async function loadEmails() {
       ? '<span style="color:var(--orange);font-weight:600;">Admin</span>'
       : '<span style="color:var(--muted);">Afiliado</span>';
     return `<tr>
-      <td>${e.email}</td>
-      <td>${e.display_name || '-'}</td>
+      <td>${esc(e.email)}</td>
+      <td>${esc(e.display_name || '-')}</td>
       <td>${roleTag}</td>
       <td>${date}</td>
-      <td><button class="del" onclick="removeEmail('${e.email}')">Remover</button></td>
+      <td><button class="del" data-email="${escAttr(e.email)}">Remover</button></td>
     </tr>`;
   }).join('');
+  tb.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => removeEmail(btn.dataset.email));
+  });
 }
 
 async function addEmail() {
@@ -87,8 +90,8 @@ async function loadAccounts() {
   const select = document.getElementById('newAccountEmail');
   select.innerHTML = '<option value="">Selecione o e-mail</option>';
   (emails || []).forEach(e => {
-    const label = e.display_name ? `${e.display_name} (${e.email})` : e.email;
-    select.innerHTML += `<option value="${e.email}">${label}</option>`;
+    const label = e.display_name ? `${esc(e.display_name)} (${esc(e.email)})` : esc(e.email);
+    select.innerHTML += `<option value="${escAttr(e.email)}">${label}</option>`;
   });
 
   const tb = document.getElementById('tAccounts');
@@ -100,12 +103,15 @@ async function loadAccounts() {
   tb.innerHTML = accounts.map(a => {
     const date = new Date(a.created_at).toLocaleDateString('pt-BR');
     return `<tr>
-      <td><strong>${a.name}</strong></td>
-      <td>${a.email}</td>
+      <td><strong>${esc(a.name)}</strong></td>
+      <td>${esc(a.email)}</td>
       <td>${date}</td>
-      <td><button class="del" onclick="removeAccount('${a.id}','${a.name}')">Remover</button></td>
+      <td><button class="del" data-id="${escAttr(a.id)}" data-name="${escAttr(a.name)}">Remover</button></td>
     </tr>`;
   }).join('');
+  tb.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => removeAccount(btn.dataset.id, btn.dataset.name));
+  });
 }
 
 async function addAccount() {
@@ -177,8 +183,8 @@ async function loadAffiliates() {
   // For now, show what we have from approved_emails
   tb.innerHTML = emails.map(e => {
     return `<tr>
-      <td>${e.email}</td>
-      <td>${e.display_name || '-'}</td>
+      <td>${esc(e.email)}</td>
+      <td>${esc(e.display_name || '-')}</td>
       <td class="r">-</td>
       <td class="r">-</td>
       <td><a href="dashboard.html" style="color:var(--orange);font-size:11px;">Ver dashboard</a></td>
@@ -228,17 +234,18 @@ function renderUploads(uploads) {
 
   tb.innerHTML = uploads.map(u => {
     const date = new Date(u.uploaded_at).toLocaleDateString('pt-BR');
-    const email = u.accounts?.email || '-';
-    const accountName = u.accounts?.name || 'Sem conta';
     return `<tr>
-      <td>${u.filename}</td>
-      <td style="font-size:11px;">${email}</td>
-      <td style="color:var(--orange);font-size:12px;">${accountName}</td>
+      <td>${esc(u.filename)}</td>
+      <td style="font-size:11px;">${esc(u.accounts?.email || '-')}</td>
+      <td style="color:var(--orange);font-size:12px;">${esc(u.accounts?.name || 'Sem conta')}</td>
       <td class="r">${u.row_count.toLocaleString()}</td>
       <td>${date}</td>
-      <td><button class="del" onclick="deleteUploadAdmin('${u.id}','${u.filename}')">Excluir</button></td>
+      <td><button class="del" data-id="${escAttr(u.id)}" data-name="${escAttr(u.filename)}">Excluir</button></td>
     </tr>`;
   }).join('');
+  tb.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => deleteUploadAdmin(btn.dataset.id, btn.dataset.name));
+  });
 }
 
 async function deleteUploadAdmin(id, filename) {

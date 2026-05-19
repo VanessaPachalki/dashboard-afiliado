@@ -628,7 +628,7 @@ function renderLojas(){
     const miniBar=`<span class="mini-bar"><span class="fill" style="width:${pctBx.toFixed(0)}%;background:${barColor}"></span></span>`;
     const gmvArr=filtered.filter(r=>r[7]===n).map(r=>r[4]).sort((a,b)=>a-b);
     const med=gmvArr[Math.floor(gmvArr.length/2)]||0;
-    return `<tr><td>${i+1}</td><td><strong>${n}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r">${v.liq}</td><td class="r${dimCls} ${txC>33?'bad':''}">${txC}%</td><td class="r${dimCls} ${txR>3.7?'bad':''}">${txR}%</td><td class="r">${v.bx}/${v.p} ${miniBar}</td></tr>`;
+    return `<tr><td>${i+1}</td><td><strong>${esc(n)}</strong></td><td class="r">${v.p.toLocaleString()}</td><td class="r">${fmtR(v.g)}</td><td class="r">R$ ${med.toFixed(0)}</td><td class="r">${v.liq}</td><td class="r${dimCls} ${txC>33?'bad':''}">${txC}%</td><td class="r${dimCls} ${txR>3.7?'bad':''}">${txR}%</td><td class="r">${v.bx}/${v.p} ${miniBar}</td></tr>`;
   }).join('');
 }
 
@@ -689,7 +689,7 @@ function renderProducts(){
     const total=p.can+p.liq+(pendProd[k]||0);
     const isDim=total>0&&(pendProd[k]||0)/total>0.5;
     const d=isDim?' dim':'';
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r bad${d}">${tr}%</td><td class="r bad${d}">${tc}%</td><td class="r bad${d}">${fmtR(lost)}</td></tr>`;
+    return `<tr><td>${esc(p.n.slice(0,45))}</td><td>${esc(p.lj)}</td><td class="r">${p.iv}</td><td class="r bad${d}">${tr}%</td><td class="r bad${d}">${tc}%</td><td class="r bad${d}">${fmtR(lost)}</td></tr>`;
   }).join('');
 
   // Produto bom: ineleg. abaixo da media E reembolso abaixo da media
@@ -707,6 +707,6 @@ function renderProducts(){
     const total=p.can+p.liq+(pendProd[k]||0);
     const isDim=total>0&&(pendProd[k]||0)/total>0.5;
     const d=isDim?' dim':'';
-    return `<tr><td>${p.n.slice(0,45)}</td><td>${p.lj}</td><td class="r">${p.iv}</td><td class="r good${d}">${tr}%</td><td class="r${d}">${tc}%</td><td class="r good${d}">${tl}%</td></tr>`;
+    return `<tr><td>${esc(p.n.slice(0,45))}</td><td>${esc(p.lj)}</td><td class="r">${p.iv}</td><td class="r good${d}">${tr}%</td><td class="r${d}">${tc}%</td><td class="r good${d}">${tl}%</td></tr>`;
   }).join('');
 }

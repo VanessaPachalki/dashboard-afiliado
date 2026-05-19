@@ -51,7 +51,7 @@ async function renderNav(activePage) {
   const session = await getSession();
   const userInfo = await getUserRole();
   const isAdmin = userInfo?.role === 'admin';
-  const name = userInfo?.display_name || session?.user?.email || '';
+  const name = esc(userInfo?.display_name || session?.user?.email || '');
 
   const nav = document.getElementById('topbar-nav');
   if (!nav) return;

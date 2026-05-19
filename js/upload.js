@@ -272,18 +272,22 @@ async function loadUploads() {
 
   listEl.innerHTML = uploads.map(u => {
     const date = new Date(u.uploaded_at).toLocaleDateString('pt-BR');
-    const accountName = u.accounts?.name || 'Sem conta';
+    const accountName = esc(u.accounts?.name || 'Sem conta');
     return `
       <div class="upload-item">
         <div class="meta">
-          <strong>${u.filename}</strong>
+          <strong>${esc(u.filename)}</strong>
           <span>${u.row_count.toLocaleString()} pedidos</span>
           <span style="color:var(--orange);">${accountName}</span>
           <span>${date}</span>
         </div>
-        <button class="del" onclick="deleteUpload('${u.id}', '${u.filename}')">Excluir</button>
+        <button class="del" data-id="${escAttr(u.id)}" data-name="${escAttr(u.filename)}">Excluir</button>
       </div>`;
   }).join('');
+  // Bind delete buttons
+  listEl.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => deleteUpload(btn.dataset.id, btn.dataset.name));
+  });
 }
 
 async function deleteUpload(id, filename) {

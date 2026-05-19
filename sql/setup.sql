@@ -22,11 +22,22 @@ create table public.uploads (
   storage_path text
 );
 
--- 3. Tabela de pedidos (dados parseados - formato compacto 14 colunas)
+-- 3. Tabela de contas de afiliado
+create table public.accounts (
+  id uuid primary key default gen_random_uuid(),
+  email text not null references public.approved_emails(email) on delete cascade,
+  name text not null,
+  created_at timestamptz default now()
+);
+
+-- 4. Tabela de pedidos (dados parseados)
 create table public.orders (
   id bigint generated always as identity primary key,
   upload_id uuid not null references public.uploads(id) on delete cascade,
   user_id uuid not null references auth.users(id),
+  account_id uuid references public.accounts(id),
+  tiktok_order_id text,
+  sku_id text,
   month text not null,
   order_date text not null,
   hour int not null,
@@ -47,13 +58,17 @@ create table public.orders (
 create index idx_orders_user on public.orders(user_id);
 create index idx_orders_upload on public.orders(upload_id);
 
+-- Deduplicação: pedido + SKU por usuário
+alter table public.orders add constraint orders_dedup unique (user_id, tiktok_order_id, sku_id);
+
 -- ================================================
--- 4. Row Level Security
+-- 5. Row Level Security
 -- ================================================
 
 alter table public.orders enable row level security;
 alter table public.uploads enable row level security;
 alter table public.approved_emails enable row level security;
+alter table public.accounts enable row level security;
 
 -- Helper: check if current user is admin
 create or replace function public.is_admin()
@@ -69,7 +84,10 @@ create policy "orders_select" on public.orders
   for select using (auth.uid() = user_id or public.is_admin());
 
 create policy "orders_insert" on public.orders
-  for insert with check (auth.uid() = user_id or public.is_admin());
+  for insert with check (
+    auth.uid() = user_id
+    and exists (select 1 from public.approved_emails where email = auth.jwt()->>'email')
+  );
 
 create policy "orders_delete" on public.orders
   for delete using (auth.uid() = user_id or public.is_admin());
@@ -79,10 +97,20 @@ create policy "uploads_select" on public.uploads
   for select using (auth.uid() = user_id or public.is_admin());
 
 create policy "uploads_insert" on public.uploads
-  for insert with check (auth.uid() = user_id or public.is_admin());
+  for insert with check (
+    auth.uid() = user_id
+    and exists (select 1 from public.approved_emails where email = auth.jwt()->>'email')
+  );
 
 create policy "uploads_delete" on public.uploads
   for delete using (auth.uid() = user_id or public.is_admin());
+
+-- Accounts: admin gerencia, afiliado vê as suas
+create policy "accounts_admin" on public.accounts
+  for all using (public.is_admin());
+
+create policy "accounts_self" on public.accounts
+  for select using (email = auth.jwt()->>'email');
 
 -- Approved emails: admin full access, affiliates can read own
 create policy "approved_admin" on public.approved_emails
