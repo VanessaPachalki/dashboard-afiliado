@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACEHUB — Upload</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Upload de Planilhas</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:800px;">
+
+<div class="callout">
+  Faça upload das planilhas exportadas do TikTok Shop (<strong>affiliate_orders_*.xlsx</strong>).<br>
+  O sistema processa tudo automaticamente e os dados aparecem no seu dashboard.
+</div>
+
+<!-- Account selector -->
+<div id="accountSelector" style="margin-bottom:20px;">
+  <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;font-weight:600;display:block;margin-bottom:8px;">Conta do afiliado</label>
+  <select id="accountSelect" style="width:100%;padding:14px 18px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml;utf8,<svg fill=\'%23777\' viewBox=\'0 0 24 24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>');background-repeat:no-repeat;background-position:right 14px center;background-size:20px;transition:border-color 0.2s;">
+    <option value="">Carregando contas...</option>
+  </select>
+</div>
+
+<!-- Upload zone -->
+<div class="upload-zone" id="dropZone">
+  <div class="icon">&#128194;</div>
+  <p>Arraste o arquivo <strong>.xlsx</strong> aqui ou <span class="browse" onclick="document.getElementById('fileInput').click()">escolha do computador</span></p>
+  <input type="file" id="fileInput" accept=".xlsx" style="display:none" multiple>
+</div>
+
+<div class="progress-bar" id="progressBar">
+  <div class="fill" id="progressFill" style="width:0%"></div>
+</div>
+
+<div class="msg" id="uploadMsg" style="text-align:center;margin-top:12px;min-height:20px;"></div>
+
+<!-- Upload list -->
+<div class="section" style="margin-top:32px;">
+  <div class="stitle">Arquivos Enviados</div>
+  <div id="uploadList"></div>
+  <div class="loading" id="listLoading" style="min-height:80px;">
+    <div class="spinner"></div> Carregando...
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/upload.js"></script>
+<script>
+(async () => {
+  const session = await requireAuth();
+  if (!session) return;
+  await renderNav('upload');
+  await loadAccounts();
+  await loadUploads();
+})();
+</script>
+</body>
+</html>

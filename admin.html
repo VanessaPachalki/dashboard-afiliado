@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACEHUB — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Painel Admin</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:900px;">
+
+<!-- Approved Emails -->
+<div class="admin-section">
+  <h2>E-mails Aprovados</h2>
+  <div class="add-row">
+    <input type="email" id="newEmail" placeholder="email@exemplo.com">
+    <input type="text" id="newName" placeholder="Nome (opcional)" style="max-width:200px;">
+    <select id="newRole">
+      <option value="affiliate">Afiliado</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button class="btn-sm" onclick="addEmail()">Adicionar</button>
+  </div>
+  <div class="msg" id="emailMsg" style="margin-bottom:12px;"></div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>E-mail</th><th>Nome</th><th>Perfil</th><th>Data</th><th></th></tr></thead>
+      <tbody id="tEmails"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Contas -->
+<div class="admin-section">
+  <h2>Contas de Afiliados</h2>
+  <div class="add-row">
+    <select id="newAccountEmail">
+      <option value="">Selecione o e-mail</option>
+    </select>
+    <input type="text" id="newAccountName" placeholder="Nome da conta (ex: Conta Principal)">
+    <button class="btn-sm" onclick="addAccount()">Criar conta</button>
+  </div>
+  <div class="msg" id="accountMsg" style="margin-bottom:12px;"></div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Conta</th><th>E-mail</th><th>Criada em</th><th></th></tr></thead>
+      <tbody id="tAccounts"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Affiliates -->
+<div class="admin-section">
+  <h2>Afiliados</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>E-mail</th><th>Nome</th><th class="r">Uploads</th><th class="r">Pedidos</th><th></th></tr></thead>
+      <tbody id="tAffiliates"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- All Uploads -->
+<div class="admin-section">
+  <h2>Todos os Uploads</h2>
+  <div class="add-row" style="margin-bottom:12px;">
+    <select id="filterEmail" onchange="filterUploads()" style="flex:1;">
+      <option value="">Todos os e-mails</option>
+    </select>
+    <select id="filterAccount" onchange="filterUploads()" style="flex:1;">
+      <option value="">Todas as contas</option>
+    </select>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Arquivo</th><th>E-mail</th><th>Conta</th><th class="r">Pedidos</th><th>Data</th><th></th></tr></thead>
+      <tbody id="tUploads"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/admin.js"></script>
+<script>
+(async () => {
+  const session = await requireAuth();
+  if (!session) return;
+  const role = await getUserRole();
+  if (role?.role !== 'admin') {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  await renderNav('admin');
+  await loadAdmin();
+})();
+</script>
+</body>
+</html>
