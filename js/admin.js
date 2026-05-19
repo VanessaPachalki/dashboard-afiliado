@@ -43,33 +43,19 @@ async function loadLoginAttempts() {
       <td>${esc(email)}</td>
       <td>${date}</td>
       <td class="r" style="${countStyle}">${info.count}x</td>
-      <td>
-        <button class="btn-sm" style="font-size:11px;" data-email="${escAttr(email)}">Liberar</button>
-      </td>
+      <td><button class="del" data-email="${escAttr(email)}">Remover</button></td>
     </tr>`;
   }).join('');
 
-  tb.querySelectorAll('.btn-sm').forEach(btn => {
-    btn.addEventListener('click', () => quickApproveFromAttempt(btn.dataset.email));
+  tb.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => removeAttempt(btn.dataset.email));
   });
 }
 
-async function quickApproveFromAttempt(email) {
-  if (!confirm(`Liberar ${email} como afiliado?`)) return;
-
-  const { error } = await sb.from('approved_emails').insert({
-    email, role: 'affiliate', display_name: null
-  });
-
-  if (error) {
-    if (error.code === '23505') alert('Este e-mail já está cadastrado.');
-    else alert('Erro: ' + error.message);
-    return;
-  }
-
-  // Limpar tentativas desse email
+async function removeAttempt(email) {
+  if (!confirm(`Remover tentativas de ${email}?`)) return;
   await sb.from('login_attempts').delete().eq('email', email);
-  await Promise.all([loadLoginAttempts(), loadEmails()]);
+  await loadLoginAttempts();
 }
 
 // ===== EMAILS =====
