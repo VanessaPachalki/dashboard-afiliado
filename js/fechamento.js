@@ -170,16 +170,20 @@ async function loadLives() {
         content_id: key,
         content_type: o.content_type,
         dates: new Set(),
-        hours: new Set(),
         order_count: 0,
         gmv: 0,
+        liquidados: 0,
+        devolucoes: 0,
+        cancelamentos: 0,
         store_name: o.store_name
       };
     }
     liveMap[key].dates.add(o.order_date);
-    liveMap[key].hours.add(o.hour);
     liveMap[key].order_count++;
     liveMap[key].gmv += parseFloat(o.gmv);
+    if (o.settlement_status === 0) liveMap[key].liquidados++;
+    if (o.settlement_status === 1 && o.items_refunded > 0) liveMap[key].devolucoes++;
+    if (o.settlement_status === 1 && o.items_refunded === 0) liveMap[key].cancelamentos++;
   });
 
   foundLives = Object.values(liveMap).sort((a, b) => {
@@ -219,6 +223,9 @@ function renderLives() {
         <span style="color:var(--muted);font-size:11px;margin-left:8px;">${esc(l.store_name)}</span>
       </span>
       <span style="font-size:11px;color:var(--muted);">${dateStr}</span>
+      <span style="font-size:11px;color:var(--green);font-weight:700;" title="Liquidados">${l.liquidados} liq</span>
+      <span style="font-size:11px;color:var(--red);font-weight:700;" title="Devoluções">${l.devolucoes} dev</span>
+      <span style="font-size:11px;color:#9B59B6;font-weight:700;" title="Cancelamentos">${l.cancelamentos} canc</span>
       <span style="font-size:12px;font-weight:600;color:var(--text);">${l.order_count} pedidos</span>
       <span style="font-size:12px;font-weight:700;color:var(--orange);">R$ ${l.gmv.toFixed(2).replace('.', ',')}</span>
     </label>`;
