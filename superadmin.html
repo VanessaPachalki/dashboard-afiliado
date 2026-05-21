@@ -83,6 +83,18 @@
   <div class="msg" id="agMsg" style="margin-top:8px;"></div>
 </div>
 
+<!-- Setup Guide -->
+<div class="admin-section">
+  <h2>Como adicionar uma nova agencia</h2>
+  <div class="callout" style="margin-bottom:0;">
+    <strong>Passo 1:</strong> Preencha o formulario acima e clique "Criar".<br>
+    <strong>Passo 2:</strong> Na <strong>Hostinger</strong> (DNS), adicione um registro:<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;Tipo: <strong>CNAME</strong> | Nome: <strong>[slug]</strong> | Destino: <strong>cname.vercel-dns.com</strong> | TTL: 3600<br>
+    <strong>Passo 3:</strong> No <strong>Vercel</strong> (Settings &rarr; Domains), adicione: <strong>[slug].spacehub-ai.com</strong><br>
+    <strong>Passo 4:</strong> Aguarde 5-30 min para propagacao do DNS. Acesse <strong>[slug].spacehub-ai.com</strong> para testar.
+  </div>
+</div>
+
 <!-- Agencies List -->
 <div class="admin-section">
   <h2>Agencias</h2>
