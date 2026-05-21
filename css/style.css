@@ -226,9 +226,9 @@ tr:hover td { background:var(--card-hover); }
 .nav-links a:hover { border-color:var(--border); color:var(--text); }
 .nav-links a.active { color:var(--orange); border-color:var(--orange); }
 .nav-links .logout {
-  color:var(--red); border-color:var(--border);
+  color:var(--orange); border-color:var(--border);
 }
-.nav-links .logout:hover { border-color:var(--red); }
+.nav-links .logout:hover { border-color:var(--orange); }
 
 /* ADMIN */
 .admin-section { margin-bottom:32px; }
