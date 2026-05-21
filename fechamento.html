@@ -41,31 +41,28 @@
 <!-- Fechamento -->
 <div class="admin-section">
   <h2>Calcular Fechamento</h2>
-  <div class="add-row" style="flex-wrap:wrap;">
-    <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:150px;">
-      <label for="fechAccount" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Conta</label>
+  <div class="add-row" style="flex-wrap:wrap;align-items:flex-end;">
+    <div class="field grow">
+      <label for="fechAccount">Conta</label>
       <select id="fechAccount" onchange="onFechAccountChange()">
         <option value="">Selecione</option>
       </select>
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:150px;">
-      <label for="fechSeller" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Vendedor</label>
+    <div class="field grow">
+      <label for="fechSeller">Vendedor</label>
       <select id="fechSeller">
         <option value="">Selecione</option>
       </select>
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px;">
-      <label for="fechStart" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Data inicial</label>
-      <input type="date" id="fechStart" style="width:150px;color-scheme:dark;">
+    <div class="field">
+      <label for="fechStart">Data inicial</label>
+      <input type="date" id="fechStart">
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px;">
-      <label for="fechEnd" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Data final</label>
-      <input type="date" id="fechEnd" style="width:150px;color-scheme:dark;">
+    <div class="field">
+      <label for="fechEnd">Data final</label>
+      <input type="date" id="fechEnd">
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end;">
-      <label style="font-size:10px;color:transparent;">&nbsp;</label>
-      <button class="btn-sm" style="white-space:nowrap;padding:8px 14px;font-size:11px;" onclick="loadLives()">Buscar Lives</button>
-    </div>
+    <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
   </div>
   <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
 </div>
