@@ -41,26 +41,26 @@
 <!-- Fechamento -->
 <div class="admin-section">
   <h2>Calcular Fechamento</h2>
-  <div class="add-row" style="flex-wrap:wrap;align-items:flex-end;">
-    <div class="field grow">
+  <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr auto;gap:10px;align-items:end;">
+    <div class="field">
       <label for="fechAccount">Conta</label>
-      <select id="fechAccount" onchange="onFechAccountChange()">
+      <select id="fechAccount" onchange="onFechAccountChange()" style="width:100%;">
         <option value="">Selecione</option>
       </select>
     </div>
-    <div class="field grow">
+    <div class="field">
       <label for="fechSeller">Vendedor</label>
-      <select id="fechSeller">
+      <select id="fechSeller" style="width:100%;">
         <option value="">Selecione</option>
       </select>
     </div>
     <div class="field">
       <label for="fechStart">Data inicial</label>
-      <input type="date" id="fechStart">
+      <input type="date" id="fechStart" style="width:100%;">
     </div>
     <div class="field">
       <label for="fechEnd">Data final</label>
-      <input type="date" id="fechEnd">
+      <input type="date" id="fechEnd" style="width:100%;">
     </div>
     <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
   </div>
