@@ -288,15 +288,13 @@ function calcularFechamento() {
   const gmvAguard = aguardando.reduce((s, o) => s + parseFloat(o.gmv), 0);
 
   const comissaoRecebida = liquidados.reduce((s, o) => s + parseFloat(o.received_commission), 0);
-  const comissaoEstimada = orders.reduce((s, o) => s + parseFloat(o.estimated_commission), 0);
+  const comissaoPendente = [...pendentes, ...aguardando].reduce((s, o) => s + parseFloat(o.estimated_commission), 0);
 
   const itensVendidos = orders.reduce((s, o) => s + o.items_sold, 0);
   const itensDevolvidos = orders.reduce((s, o) => s + o.items_refunded, 0);
 
   // Seller commission = commission_pct% of received_commission (liquidated)
   const comissaoVendedor = comissaoRecebida * (seller.commission_pct / 100);
-  const comissaoPerdida = inelegiveis.reduce((s, o) => s + parseFloat(o.estimated_commission), 0);
-
   // Show results
   const resultSection = document.getElementById('resultSection');
   resultSection.style.display = '';
@@ -331,10 +329,10 @@ function calcularFechamento() {
         <div style="font-size:11px;color:var(--muted);">${seller.commission_pct}% de ${fmtBRL(comissaoRecebida)}</div>
       </div>
 
-      ${comissaoEstimada > comissaoRecebida ? `
+      ${comissaoPendente > 0 ? `
       <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
         <div style="font-size:11px;color:var(--cream);">
-          Comissão estimada pendente: <strong>${fmtBRL(comissaoEstimada - comissaoRecebida)}</strong>
+          Comissão estimada pendente: <strong>${fmtBRL(comissaoPendente)}</strong>
         </div>
       </div>` : ''}
     </div>
