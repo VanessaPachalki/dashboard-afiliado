@@ -61,6 +61,7 @@ async function renderNav(activePage) {
     <a href="upload.html" class="${activePage === 'upload' ? 'active' : ''}">Upload</a>
   `;
   if (isAdmin) {
+    links += `<a href="fechamento.html" class="${activePage === 'fechamento' ? 'active' : ''}">Fechamento</a>`;
     links += `<a href="admin.html" class="${activePage === 'admin' ? 'active' : ''}">Admin</a>`;
   }
   links += `

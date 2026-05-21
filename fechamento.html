@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data:;">
+<title>SPACEHUB — Fechamento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Fechamento de Comissões</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:1000px;">
+
+<!-- Vendedores -->
+<div class="admin-section">
+  <h2>Vendedores</h2>
+  <div class="add-row">
+    <select id="sellerAccount" onchange="onSellerAccountChange()">
+      <option value="">Selecione a conta</option>
+    </select>
+    <input type="text" id="sellerName" placeholder="Nome do vendedor">
+    <input type="number" id="sellerPct" placeholder="Comissão %" min="0" max="100" step="0.1" style="max-width:120px;">
+    <button class="btn-sm" onclick="addSeller()">Adicionar</button>
+  </div>
+  <div class="msg" id="sellerMsg" style="margin-bottom:12px;"></div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Vendedor</th><th>Conta</th><th>Comissão %</th><th>Criado em</th><th></th></tr></thead>
+      <tbody id="tSellers"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Fechamento -->
+<div class="admin-section">
+  <h2>Calcular Fechamento</h2>
+  <div class="add-row" style="flex-wrap:wrap;">
+    <select id="fechAccount" onchange="onFechAccountChange()">
+      <option value="">Conta</option>
+    </select>
+    <select id="fechSeller">
+      <option value="">Vendedor</option>
+    </select>
+    <input type="date" id="fechStart" style="max-width:160px;">
+    <input type="date" id="fechEnd" style="max-width:160px;">
+    <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
+  </div>
+  <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
+</div>
+
+<!-- Lives encontradas -->
+<div class="admin-section" id="livesSection" style="display:none;">
+  <h2>Lives no Período</h2>
+  <p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Marque as lives que pertencem a este vendedor.</p>
+  <div style="margin-bottom:12px;">
+    <label style="font-size:12px;color:var(--muted);cursor:pointer;">
+      <input type="checkbox" id="checkAll" onchange="toggleAll()" style="margin-right:6px;">Selecionar todas
+    </label>
+  </div>
+  <div id="livesList"></div>
+  <div style="margin-top:16px;">
+    <button class="btn-sm" onclick="calcularFechamento()">Calcular Fechamento</button>
+  </div>
+</div>
+
+<!-- Resultado -->
+<div class="admin-section" id="resultSection" style="display:none;">
+  <h2>Resultado do Fechamento</h2>
+  <div id="resultSummary"></div>
+
+  <div class="g2" style="margin-top:16px;">
+    <div class="card">
+      <h3>Resumo por Status</h3>
+      <div id="statusBreakdown"></div>
+    </div>
+    <div class="card">
+      <h3>Comissão a Pagar</h3>
+      <div id="comissaoResult"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Pedidos Liquidados</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Comissão</th></tr></thead>
+        <tbody id="tLiquidados"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Devoluções <small style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(cliente recebeu e devolveu)</small></h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Itens Devolvidos</th></tr></thead>
+        <tbody id="tDevolucoes"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Cancelamentos <small style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(cliente cancelou antes de receber)</small></h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Comissão Perdida</th></tr></thead>
+        <tbody id="tCancelamentos"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Pendentes / Aguardando Pagamento</h3>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th>Status</th></tr></thead>
+        <tbody id="tPendentes"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/fechamento.js"></script>
+<script>
+(async () => {
+  const session = await requireAuth();
+  if (!session) return;
+  const role = await getUserRole();
+  if (role?.role !== 'admin') {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  await renderNav('fechamento');
+  await initFechamento();
+})();
+</script>
+</body>
+</html>
