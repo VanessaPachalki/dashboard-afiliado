@@ -15,12 +15,12 @@ Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
 
 let O='#E8551B',OA='#E8551B30';
 const T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',TA='#4EC9B030';
-function syncBrandColor(){O=window.BRAND_COLOR||'#E8551B';OA=(window.BRAND_COLOR||'#E8551B')+'30';}
 const LK='#9B59B6',VT='#E67E22';
 const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'];
 const STLABEL = ['Liquidado','Inelegível','Pendente','Aguardando Pagamento'];
 const CTLABEL = ['Live','Vídeo','Link','Vitrine'];
-const CTCOLOR = [O, T, LK, VT];
+function syncBrandColor(){O=window.BRAND_COLOR||'#E8551B';OA=O+'30';}
+function ctcolor(){return [O, T, LK, VT];}
 
 function fmt(n){return 'R$ '+(n/1000).toFixed(0)+'k';}
 function fmtR(n){return 'R$ '+Math.round(n).toLocaleString('pt-BR');}
@@ -369,7 +369,7 @@ function renderDedicacao() {
   const ms=Object.keys(byM).sort();
   const labels=ms.map(m=>(window.MLABEL||{})[m]||m);
   const datasets=CTLABEL.map((l,i)=>({
-    label:l,data:ms.map(m=>byM[m].ct[i].size),backgroundColor:CTCOLOR[i],stack:'s',yAxisID:'y',borderRadius:3
+    label:l,data:ms.map(m=>byM[m].ct[i].size),backgroundColor:ctcolor()[i],stack:'s',yAxisID:'y',borderRadius:3
   })).filter(ds=>ds.data.some(v=>v>0));
   datasets.push({label:'GMV',data:ms.map(m=>Math.round(byM[m].gmv)),type:'line',borderColor:T,backgroundColor:T,pointRadius:6,borderWidth:2,yAxisID:'y1',tension:0.3});
   makeChart('cDedicacao',{
@@ -388,7 +388,7 @@ function renderRetorno() {
   });
   const ms=Object.keys(byM).sort();
   const datasets=CTLABEL.map((l,i)=>({
-    label:'GMV/'+l,data:ms.map(m=>byM[m].c[i].size?Math.round(byM[m].g[i]/byM[m].c[i].size):0),borderColor:CTCOLOR[i],backgroundColor:CTCOLOR[i],pointRadius:5,tension:0.3
+    label:'GMV/'+l,data:ms.map(m=>byM[m].c[i].size?Math.round(byM[m].g[i]/byM[m].c[i].size):0),borderColor:ctcolor()[i],backgroundColor:ctcolor()[i],pointRadius:5,tension:0.3
   })).filter(ds=>ds.data.some(v=>v>0));
   makeChart('cRetorno',{
     type:'line',
