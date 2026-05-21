@@ -58,8 +58,14 @@
       <input type="text" id="agSlug" placeholder="Ex: furia" pattern="[a-z0-9\-]+" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9\-]/g,'')">
     </div>
     <div class="field">
-      <label for="agColor">Cor primaria</label>
-      <input type="color" id="agColor" value="#E8551B" style="height:36px;padding:2px;cursor:pointer;">
+      <label for="agTheme">Tema</label>
+      <select id="agTheme">
+        <option value="#E8551B">Vulcano (Laranja)</option>
+        <option value="#3B82F6">Oceano (Azul)</option>
+        <option value="#10B981">Floresta (Verde)</option>
+        <option value="#8B5CF6">Cosmos (Roxo)</option>
+        <option value="#EC4899">Neon (Rosa)</option>
+      </select>
     </div>
     <div class="field">
       <label for="agPlan">Plano</label>

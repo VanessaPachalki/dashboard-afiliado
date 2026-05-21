@@ -126,22 +126,26 @@ function applyBranding(agency) {
   window.BRAND_COLOR = agency.primary_color || '#E8551B';
   window.BRAND_COLOR_ALPHA = (agency.primary_color || '#E8551B') + '30';
 
-  // Replace brand text in topbar
+  // Replace brand in topbar and login
   document.querySelectorAll('.brand').forEach(el => {
     const small = el.querySelector('small');
     const smallText = small ? small.textContent : '';
 
-    // Clear and rebuild
     el.textContent = '';
     if (agency.logo_url) {
+      // Logo replaces text entirely
       const img = document.createElement('img');
       img.src = agency.logo_url;
       img.alt = agency.name;
-      img.style.cssText = 'height:24px;margin-right:8px;vertical-align:middle;border-radius:4px;';
-      img.onerror = function() { this.style.display = 'none'; };
+      img.style.cssText = 'height:32px;vertical-align:middle;border-radius:4px;';
+      img.onerror = function() {
+        this.style.display = 'none';
+        this.parentElement.appendChild(document.createTextNode(agency.name + ' '));
+      };
       el.appendChild(img);
+    } else {
+      el.appendChild(document.createTextNode(agency.name + ' '));
     }
-    el.appendChild(document.createTextNode(agency.name + ' '));
     if (smallText) {
       const s = document.createElement('small');
       s.textContent = smallText;

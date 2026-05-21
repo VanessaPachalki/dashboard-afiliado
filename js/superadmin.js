@@ -6,7 +6,15 @@ let allAgencies = [];
 let selectedAgencyId = null;
 let agencyMembers = [];
 
-const RESERVED_SLUGS = ['www', 'app', 'api', 'admin', 'test', 'staging', 'mail', 'ftp', 'static', 'assets', 'spacehub'];
+const RESERVED_SLUGS = ['www', 'app', 'api', 'admin', 'test', 'staging', 'mail', 'ftp', 'static', 'assets'];
+
+const THEMES = {
+  '#E8551B': 'Vulcano',
+  '#3B82F6': 'Oceano',
+  '#10B981': 'Floresta',
+  '#8B5CF6': 'Cosmos',
+  '#EC4899': 'Neon'
+};
 
 // ===== INIT =====
 
@@ -65,6 +73,7 @@ function renderAgencies() {
         </div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
           <span class="color-preview" style="background:${escAttr(a.primary_color)};"></span>
+          <span style="font-size:11px;color:var(--muted);">${esc(THEMES[a.primary_color] || 'Custom')}</span>
           <span class="plan-tag ${planClass}">${esc(a.plan)}</span>
         </div>
       </div>
@@ -85,7 +94,7 @@ function renderAgencies() {
 async function createAgency() {
   const name = document.getElementById('agName').value.trim();
   const slug = document.getElementById('agSlug').value.trim().toLowerCase();
-  const color = document.getElementById('agColor').value;
+  const color = document.getElementById('agTheme').value;
   const plan = document.getElementById('agPlan').value;
   const adminEmail = document.getElementById('agAdminEmail').value.trim().toLowerCase();
   const adminName = document.getElementById('agAdminName').value.trim();
