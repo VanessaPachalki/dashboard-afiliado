@@ -170,6 +170,7 @@ async function loadLives() {
         content_id: key,
         content_type: o.content_type,
         dates: new Set(),
+        hours: new Set(),
         order_count: 0,
         gmv: 0,
         liquidados: 0,
@@ -179,6 +180,7 @@ async function loadLives() {
       };
     }
     liveMap[key].dates.add(o.order_date);
+    liveMap[key].hours.add(o.hour);
     liveMap[key].order_count++;
     liveMap[key].gmv += parseFloat(o.gmv);
     if (o.settlement_status === 0) liveMap[key].liquidados++;
@@ -214,21 +216,27 @@ function renderLives() {
       const [y, m, day] = d.split('-');
       return `${day}/${m}`;
     }).join(', ');
+    const hours = [...l.hours].sort((a, b) => a - b);
+    const minH = hours[0];
+    const maxH = hours[hours.length - 1];
 
-    return `<label class="live-item" style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
-      <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;">
+    return `<div class="live-item" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+      <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;cursor:pointer;">
       <span class="tag tag-l">Live</span>
       <span style="flex:1;">
         <strong style="color:var(--text);font-size:12px;">${esc(l.content_id)}</strong>
         <span style="color:var(--muted);font-size:11px;margin-left:8px;">${esc(l.store_name)}</span>
       </span>
       <span style="font-size:11px;color:var(--muted);">${dateStr}</span>
-      <span style="font-size:11px;color:var(--green);font-weight:700;" title="Liquidados">${l.liquidados} liq</span>
-      <span style="font-size:11px;color:var(--red);font-weight:700;" title="Devoluções">${l.devolucoes} dev</span>
-      <span style="font-size:11px;color:#9B59B6;font-weight:700;" title="Cancelamentos">${l.cancelamentos} canc</span>
-      <span style="font-size:12px;font-weight:600;color:var(--text);">${l.order_count} pedidos</span>
-      <span style="font-size:12px;font-weight:700;color:var(--orange);">R$ ${l.gmv.toFixed(2).replace('.', ',')}</span>
-    </label>`;
+      <span style="font-size:11px;color:var(--muted);">${minH}h-${maxH}h</span>
+      <span style="font-size:11px;color:var(--green);font-weight:700;">${l.liquidados} liq</span>
+      <span style="font-size:11px;color:var(--red);font-weight:700;">${l.devolucoes} dev</span>
+      <span style="font-size:11px;color:#9B59B6;font-weight:700;">${l.cancelamentos} canc</span>
+      <span style="font-size:12px;font-weight:600;color:var(--text);">${l.order_count} ped</span>
+      <input type="number" class="live-hora-ini" data-idx="${i}" placeholder="De" min="0" max="23" value="" style="width:50px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
+      <span style="color:var(--muted);font-size:11px;">às</span>
+      <input type="number" class="live-hora-fim" data-idx="${i}" placeholder="Até" min="0" max="23" value="" style="width:50px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
+    </div>`;
   }).join('');
 }
 
@@ -256,11 +264,25 @@ function calcularFechamento() {
     return;
   }
 
-  // Get content_ids of selected lives
-  const selectedContentIds = new Set(selectedIdxs.map(i => foundLives[i].content_id));
+  // Get content_ids + hour filters of selected lives
+  const selectedLives = selectedIdxs.map(i => {
+    const horaIni = document.querySelector(`.live-hora-ini[data-idx="${i}"]`)?.value;
+    const horaFim = document.querySelector(`.live-hora-fim[data-idx="${i}"]`)?.value;
+    return {
+      content_id: foundLives[i].content_id,
+      horaIni: horaIni !== '' ? parseInt(horaIni) : null,
+      horaFim: horaFim !== '' ? parseInt(horaFim) : null
+    };
+  });
 
-  // Filter orders to only selected content_ids
-  const orders = fetchedOrders.filter(o => selectedContentIds.has(o.content_id));
+  // Filter orders by content_id + optional hour range
+  const orders = fetchedOrders.filter(o => {
+    const live = selectedLives.find(l => l.content_id === o.content_id);
+    if (!live) return false;
+    if (live.horaIni !== null && o.hour < live.horaIni) return false;
+    if (live.horaFim !== null && o.hour > live.horaFim) return false;
+    return true;
+  });
 
   // Group by settlement_status
   const byStatus = { 0: [], 1: [], 2: [], 3: [] };
