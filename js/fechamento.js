@@ -295,6 +295,7 @@ function calcularFechamento() {
 
   // Seller commission = commission_pct% of received_commission (liquidated)
   const comissaoVendedor = comissaoRecebida * (seller.commission_pct / 100);
+  const comissaoPerdida = inelegiveis.reduce((s, o) => s + parseFloat(o.estimated_commission), 0);
 
   // Show results
   const resultSection = document.getElementById('resultSection');
@@ -304,6 +305,8 @@ function calcularFechamento() {
   const start = document.getElementById('fechStart').value;
   const end = document.getElementById('fechEnd').value;
   const fmtDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
+  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;
@@ -313,52 +316,7 @@ function calcularFechamento() {
     </div>
   `;
 
-  // Status breakdown
-  const fmt = v => 'R$ ' + v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, '.').replace('.', ',').replace(/,(\d{2})$/, ',$1');
-  // Fix the formatting
-  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  document.getElementById('statusBreakdown').innerHTML = `
-    <table style="width:100%;font-size:12px;">
-      <tr>
-        <td><span style="color:${STATUS_COLORS[0]};">&#9679;</span> Liquidados</td>
-        <td class="r"><strong>${liquidados.length}</strong> pedidos</td>
-        <td class="r" style="color:${STATUS_COLORS[0]};font-weight:700;">${fmtBRL(gmvLiq)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:var(--red);">&#9679;</span> Devoluções <span style="font-size:10px;color:var(--muted);">(recebeu e devolveu)</span></td>
-        <td class="r"><strong>${devolucoes.length}</strong> pedidos</td>
-        <td class="r" style="color:var(--red);font-weight:700;">${fmtBRL(gmvDevol)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:#9B59B6;">&#9679;</span> Cancelamentos <span style="font-size:10px;color:var(--muted);">(cancelou antes de receber)</span></td>
-        <td class="r"><strong>${cancelamentos.length}</strong> pedidos</td>
-        <td class="r" style="color:#9B59B6;font-weight:700;">${fmtBRL(gmvCancel)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${STATUS_COLORS[2]};">&#9679;</span> Pendentes</td>
-        <td class="r"><strong>${pendentes.length}</strong> pedidos</td>
-        <td class="r" style="color:${STATUS_COLORS[2]};font-weight:700;">${fmtBRL(gmvPend)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${STATUS_COLORS[3]};">&#9679;</span> Aguardando Pagamento</td>
-        <td class="r"><strong>${aguardando.length}</strong> pedidos</td>
-        <td class="r" style="color:${STATUS_COLORS[3]};font-weight:700;">${fmtBRL(gmvAguard)}</td>
-      </tr>
-      <tr style="border-top:2px solid var(--border);">
-        <td><strong>Total</strong></td>
-        <td class="r"><strong>${orders.length}</strong> pedidos</td>
-        <td class="r" style="font-weight:700;">${fmtBRL(gmvTotal)}</td>
-      </tr>
-    </table>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);">
-      Itens vendidos: <strong style="color:var(--text);">${itensVendidos}</strong> &mdash;
-      Itens devolvidos: <strong style="color:var(--red);">${itensDevolvidos}</strong>
-      ${itensVendidos > 0 ? `(${((itensDevolvidos / itensVendidos) * 100).toFixed(1)}% de devolução)` : ''}
-    </div>
-  `;
-
-  // Commission result
+  // Commission card
   document.getElementById('comissaoResult').innerHTML = `
     <div style="text-align:center;padding:16px 0;">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Comissão Recebida (TikTok)</div>
@@ -382,97 +340,161 @@ function calcularFechamento() {
     </div>
   `;
 
-  // Order tables
-  renderOrderTable('tLiquidados', liquidados, 'liquidado');
-  renderOrderTable('tDevolucoes', devolucoes, 'devolucao');
-  renderOrderTable('tCancelamentos', cancelamentos, 'cancelamento');
-  renderOrderTable('tPendentes', [...pendentes, ...aguardando], 'pendente');
+  // Charts
+  const chartColors = {
+    liq: '#3CB371',
+    devol: '#D9534F',
+    cancel: '#9B59B6',
+    pend: '#D4A76A',
+    aguard: '#777'
+  };
+
+  // Destroy old charts
+  ['chartLiquidados', 'chartCancelamentos', 'chartDevolucoes'].forEach(id => {
+    const existing = Chart.getChart(id);
+    if (existing) existing.destroy();
+  });
+
+  // Group liquidados by store for chart
+  const liqByStore = {};
+  liquidados.forEach(o => {
+    const s = o.store_name;
+    if (!liqByStore[s]) liqByStore[s] = { gmv: 0, count: 0, comissao: 0 };
+    liqByStore[s].gmv += parseFloat(o.gmv);
+    liqByStore[s].count++;
+    liqByStore[s].comissao += parseFloat(o.received_commission);
+  });
+  const liqStores = Object.entries(liqByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+
+  // Group cancelamentos by store
+  const cancelByStore = {};
+  cancelamentos.forEach(o => {
+    const s = o.store_name;
+    if (!cancelByStore[s]) cancelByStore[s] = { gmv: 0, count: 0 };
+    cancelByStore[s].gmv += parseFloat(o.gmv);
+    cancelByStore[s].count++;
+  });
+  const cancelStores = Object.entries(cancelByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+
+  // Group devoluções by store
+  const devolByStore = {};
+  devolucoes.forEach(o => {
+    const s = o.store_name;
+    if (!devolByStore[s]) devolByStore[s] = { gmv: 0, count: 0, refunded: 0 };
+    devolByStore[s].gmv += parseFloat(o.gmv);
+    devolByStore[s].count++;
+    devolByStore[s].refunded += o.items_refunded;
+  });
+  const devolStores = Object.entries(devolByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+
+  const barOpts = (color, tooltipFn) => ({
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: tooltipFn } }
+    },
+    scales: {
+      x: { ticks: { color: '#777', font: { size: 10 } }, grid: { color: '#1a1a1a' } },
+      y: { ticks: { color: '#ddd', font: { size: 11 } }, grid: { display: false } }
+    }
+  });
+
+  // Chart: Liquidados
+  new Chart(document.getElementById('chartLiquidados'), {
+    type: 'bar',
+    data: {
+      labels: liqStores.length ? liqStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      datasets: [{
+        data: liqStores.length ? liqStores.map(([, v]) => v.gmv) : [0],
+        backgroundColor: chartColors.liq,
+        borderRadius: 4,
+        maxBarThickness: 28
+      }]
+    },
+    options: barOpts(chartColors.liq, ctx => {
+      const store = liqStores[ctx.dataIndex];
+      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].count} ped.)` : '';
+    })
+  });
+
+  // Chart: Cancelamentos
+  new Chart(document.getElementById('chartCancelamentos'), {
+    type: 'bar',
+    data: {
+      labels: cancelStores.length ? cancelStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      datasets: [{
+        data: cancelStores.length ? cancelStores.map(([, v]) => v.gmv) : [0],
+        backgroundColor: chartColors.cancel,
+        borderRadius: 4,
+        maxBarThickness: 28
+      }]
+    },
+    options: barOpts(chartColors.cancel, ctx => {
+      const store = cancelStores[ctx.dataIndex];
+      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].count} ped.)` : '';
+    })
+  });
+
+  // Chart: Devoluções
+  new Chart(document.getElementById('chartDevolucoes'), {
+    type: 'bar',
+    data: {
+      labels: devolStores.length ? devolStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      datasets: [{
+        data: devolStores.length ? devolStores.map(([, v]) => v.gmv) : [0],
+        backgroundColor: chartColors.devol,
+        borderRadius: 4,
+        maxBarThickness: 28
+      }]
+    },
+    options: barOpts(chartColors.devol, ctx => {
+      const store = devolStores[ctx.dataIndex];
+      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].refunded} devolvidos)` : '';
+    })
+  });
+
+  // Detailed summary table
+  document.getElementById('statusBreakdown').innerHTML = `
+    <table style="width:100%;font-size:12px;">
+      <tr>
+        <td><span style="color:${chartColors.liq};">&#9679;</span> Liquidados</td>
+        <td class="r"><strong>${liquidados.length}</strong> pedidos</td>
+        <td class="r" style="color:${chartColors.liq};font-weight:700;">${fmtBRL(gmvLiq)}</td>
+      </tr>
+      <tr>
+        <td><span style="color:${chartColors.devol};">&#9679;</span> Devoluções <span style="font-size:10px;color:var(--muted);">(recebeu e devolveu)</span></td>
+        <td class="r"><strong>${devolucoes.length}</strong> pedidos</td>
+        <td class="r" style="color:${chartColors.devol};font-weight:700;">${fmtBRL(gmvDevol)}</td>
+      </tr>
+      <tr>
+        <td><span style="color:${chartColors.cancel};">&#9679;</span> Cancelamentos <span style="font-size:10px;color:var(--muted);">(cancelou antes de receber)</span></td>
+        <td class="r"><strong>${cancelamentos.length}</strong> pedidos</td>
+        <td class="r" style="color:${chartColors.cancel};font-weight:700;">${fmtBRL(gmvCancel)}</td>
+      </tr>
+      <tr>
+        <td><span style="color:${chartColors.pend};">&#9679;</span> Pendentes</td>
+        <td class="r"><strong>${pendentes.length}</strong> pedidos</td>
+        <td class="r" style="color:${chartColors.pend};font-weight:700;">${fmtBRL(gmvPend)}</td>
+      </tr>
+      <tr>
+        <td><span style="color:${chartColors.aguard};">&#9679;</span> Aguardando Pagamento</td>
+        <td class="r"><strong>${aguardando.length}</strong> pedidos</td>
+        <td class="r" style="color:${chartColors.aguard};font-weight:700;">${fmtBRL(gmvAguard)}</td>
+      </tr>
+      <tr style="border-top:2px solid var(--border);">
+        <td><strong>Total</strong></td>
+        <td class="r"><strong>${orders.length}</strong> pedidos</td>
+        <td class="r" style="font-weight:700;">${fmtBRL(gmvTotal)}</td>
+      </tr>
+    </table>
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);">
+      Itens vendidos: <strong style="color:var(--text);">${itensVendidos}</strong> &mdash;
+      Itens devolvidos: <strong style="color:var(--red);">${itensDevolvidos}</strong>
+      ${itensVendidos > 0 ? `(${((itensDevolvidos / itensVendidos) * 100).toFixed(1)}% de devolução)` : ''}
+    </div>
+  `;
 
   // Scroll to result
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-const TABLE_PER_PAGE = 10;
-const tablePages = {};
-
-function renderOrderTable(tbodyId, orders, type, page) {
-  const tb = document.getElementById(tbodyId);
-  const pagId = 'pag' + tbodyId.replace('t', '');
-  if (!page) page = 1;
-  tablePages[tbodyId] = { orders, type, page };
-
-  if (!orders.length) {
-    tb.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;">Nenhum pedido.</td></tr>`;
-    const pagEl = document.getElementById(pagId);
-    if (pagEl) pagEl.innerHTML = '';
-    return;
-  }
-
-  const totalPages = Math.ceil(orders.length / TABLE_PER_PAGE);
-  const start = (page - 1) * TABLE_PER_PAGE;
-  const pageOrders = orders.slice(start, start + TABLE_PER_PAGE);
-
-  const fmtBRL = v => parseFloat(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const fmtDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
-
-  if (type === 'liquidado') {
-    tb.innerHTML = pageOrders.map(o => `<tr>
-      <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
-      <td>${fmtDate(o.order_date)} ${o.hour}h</td>
-      <td>${esc(o.product_name)}</td>
-      <td style="font-size:11px;">${esc(o.store_name)}</td>
-      <td class="r" style="font-weight:600;">${fmtBRL(o.gmv)}</td>
-      <td class="r good" style="font-weight:700;">${fmtBRL(o.received_commission)}</td>
-    </tr>`).join('');
-  } else if (type === 'devolucao') {
-    tb.innerHTML = pageOrders.map(o => `<tr>
-      <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
-      <td>${fmtDate(o.order_date)} ${o.hour}h</td>
-      <td>${esc(o.product_name)}</td>
-      <td style="font-size:11px;">${esc(o.store_name)}</td>
-      <td class="r" style="font-weight:600;">${fmtBRL(o.gmv)}</td>
-      <td class="r bad" style="font-weight:700;">${o.items_refunded}</td>
-    </tr>`).join('');
-  } else if (type === 'cancelamento') {
-    tb.innerHTML = pageOrders.map(o => `<tr>
-      <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
-      <td>${fmtDate(o.order_date)} ${o.hour}h</td>
-      <td>${esc(o.product_name)}</td>
-      <td style="font-size:11px;">${esc(o.store_name)}</td>
-      <td class="r" style="font-weight:600;">${fmtBRL(o.gmv)}</td>
-      <td class="r" style="color:#9B59B6;font-weight:700;">${fmtBRL(o.estimated_commission)}</td>
-    </tr>`).join('');
-  } else {
-    tb.innerHTML = pageOrders.map(o => {
-      const label = STATUS_LABELS[o.settlement_status] || '?';
-      const color = STATUS_COLORS[o.settlement_status] || 'var(--muted)';
-      return `<tr>
-        <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
-        <td>${fmtDate(o.order_date)} ${o.hour}h</td>
-        <td>${esc(o.product_name)}</td>
-        <td style="font-size:11px;">${esc(o.store_name)}</td>
-        <td class="r" style="font-weight:600;">${fmtBRL(o.gmv)}</td>
-        <td style="color:${color};font-weight:600;font-size:11px;">${label}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  // Pagination
-  const pagEl = document.getElementById(pagId);
-  if (pagEl && totalPages > 1) {
-    let html = `<button ${page === 1 ? 'disabled' : ''} data-p="${page - 1}">&laquo;</button>`;
-    for (let i = 1; i <= totalPages; i++) {
-      html += `<button class="${i === page ? 'active' : ''}" data-p="${i}">${i}</button>`;
-    }
-    html += `<button ${page === totalPages ? 'disabled' : ''} data-p="${page + 1}">&raquo;</button>`;
-    pagEl.innerHTML = html;
-    pagEl.querySelectorAll('button:not(:disabled)').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const d = tablePages[tbodyId];
-        renderOrderTable(tbodyId, d.orders, d.type, +btn.dataset.p);
-      });
-    });
-  } else if (pagEl) {
-    pagEl.innerHTML = '';
-  }
 }

@@ -75,64 +75,35 @@
   <h2>Resultado do Fechamento</h2>
   <div id="resultSummary"></div>
 
-  <div class="g2" style="margin-top:16px;">
+  <div class="card" style="margin-top:16px;">
+    <h3>Comissão a Pagar</h3>
+    <div id="comissaoResult"></div>
+  </div>
+
+  <div class="g3" style="margin-top:16px;">
     <div class="card">
-      <h3>Resumo por Status</h3>
-      <div id="statusBreakdown"></div>
+      <h3>Pedidos Liquidados</h3>
+      <canvas id="chartLiquidados"></canvas>
     </div>
     <div class="card">
-      <h3>Comissão a Pagar</h3>
-      <div id="comissaoResult"></div>
+      <h3>Cancelamentos</h3>
+      <canvas id="chartCancelamentos"></canvas>
+    </div>
+    <div class="card">
+      <h3>Devoluções</h3>
+      <canvas id="chartDevolucoes"></canvas>
     </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h3>Pedidos Liquidados</h3>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Comissão</th></tr></thead>
-        <tbody id="tLiquidados"></tbody>
-      </table>
-    </div>
-    <div class="pag" id="pagLiquidados"></div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h3>Devoluções <small style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(cliente recebeu e devolveu)</small></h3>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Itens Devolvidos</th></tr></thead>
-        <tbody id="tDevolucoes"></tbody>
-      </table>
-    </div>
-    <div class="pag" id="pagDevolucoes"></div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h3>Cancelamentos <small style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(cliente cancelou antes de receber)</small></h3>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th class="r">Comissão Perdida</th></tr></thead>
-        <tbody id="tCancelamentos"></tbody>
-      </table>
-    </div>
-    <div class="pag" id="pagCancelamentos"></div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h3>Pendentes / Aguardando Pagamento</h3>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Pedido</th><th>Data</th><th>Produto</th><th>Loja</th><th class="r">GMV</th><th>Status</th></tr></thead>
-        <tbody id="tPendentes"></tbody>
-      </table>
-    </div>
-    <div class="pag" id="pagPendentes"></div>
+    <h3>Resumo Detalhado</h3>
+    <div id="statusBreakdown"></div>
   </div>
 </div>
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script src="js/auth.js"></script>
