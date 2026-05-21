@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data: *.supabase.co https:;">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Super Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .agency-card {
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:16px; margin-bottom:10px; transition:border-color 0.15s;
+  }
+  .agency-card:hover { border-color:var(--orange); }
+  .agency-card .agency-header { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .agency-card .agency-header img { height:32px; border-radius:6px; }
+  .agency-card .agency-name { font-size:15px; font-weight:700; }
+  .agency-card .agency-slug { font-size:11px; color:var(--muted); }
+  .agency-card .agency-meta { display:flex; gap:12px; font-size:11px; color:var(--muted); flex-wrap:wrap; }
+  .agency-card .agency-meta span { display:flex; align-items:center; gap:4px; }
+  .color-preview { width:16px; height:16px; border-radius:4px; border:1px solid var(--border); display:inline-block; vertical-align:middle; }
+  .plan-tag { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700; text-transform:uppercase; }
+  .plan-starter { background:rgba(119,119,119,0.15); color:var(--muted); }
+  .plan-pro { background:rgba(232,85,27,0.15); color:var(--orange); }
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Super Admin</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:1000px;">
+
+<!-- Stats -->
+<div class="stat-grid" id="globalStats">
+  <div class="kpi"><div class="kpi-v" id="statAgencies">-</div><div class="kpi-l">Agencias</div></div>
+  <div class="kpi"><div class="kpi-v" id="statMembers">-</div><div class="kpi-l">Membros</div></div>
+  <div class="kpi"><div class="kpi-v" id="statOrders">-</div><div class="kpi-l">Pedidos</div></div>
+  <div class="kpi"><div class="kpi-v" id="statUploads">-</div><div class="kpi-l">Uploads</div></div>
+</div>
+
+<!-- Create Agency -->
+<div class="admin-section">
+  <h2>Criar Agencia</h2>
+  <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr auto auto;gap:10px;align-items:end;">
+    <div class="field">
+      <label for="agName">Nome da agencia</label>
+      <input type="text" id="agName" placeholder="Ex: Agencia Furia">
+    </div>
+    <div class="field">
+      <label for="agSlug">Slug (subdominio)</label>
+      <input type="text" id="agSlug" placeholder="Ex: furia" pattern="[a-z0-9\-]+" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9\-]/g,'')">
+    </div>
+    <div class="field">
+      <label for="agColor">Cor primaria</label>
+      <input type="color" id="agColor" value="#E8551B" style="height:36px;padding:2px;cursor:pointer;">
+    </div>
+    <div class="field">
+      <label for="agPlan">Plano</label>
+      <select id="agPlan">
+        <option value="starter">Starter</option>
+        <option value="pro">Pro</option>
+      </select>
+    </div>
+    <button class="btn-sm" onclick="createAgency()">Criar</button>
+  </div>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-top:10px;align-items:end;">
+    <div class="field">
+      <label for="agAdminEmail">E-mail do admin da agencia</label>
+      <input type="email" id="agAdminEmail" placeholder="admin@agencia.com">
+    </div>
+    <div class="field">
+      <label for="agAdminName">Nome do admin</label>
+      <input type="text" id="agAdminName" placeholder="Nome (opcional)">
+    </div>
+  </div>
+  <div class="msg" id="agMsg" style="margin-top:8px;"></div>
+</div>
+
+<!-- Agencies List -->
+<div class="admin-section">
+  <h2>Agencias</h2>
+  <div id="agenciesList"></div>
+</div>
+
+<!-- Agency Detail (hidden by default) -->
+<div class="admin-section" id="agencyDetail" style="display:none;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <h2 id="detailTitle">Membros</h2>
+    <button class="btn-sm" onclick="closeDetail()" style="background:transparent;border:1px solid var(--border);color:var(--muted);">Fechar</button>
+  </div>
+  <!-- Add member -->
+  <div class="add-row" style="margin-bottom:12px;">
+    <input type="email" id="memberEmail" placeholder="email@exemplo.com">
+    <input type="text" id="memberName" placeholder="Nome (opcional)" style="max-width:200px;">
+    <select id="memberRole">
+      <option value="affiliate">Afiliado</option>
+      <option value="agency_admin">Admin</option>
+    </select>
+    <button class="btn-sm" onclick="addMember()">Adicionar</button>
+  </div>
+  <div class="msg" id="memberMsg"></div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>E-mail</th><th>Nome</th><th>Role</th><th>Criado</th><th></th></tr></thead>
+      <tbody id="tMembers"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/superadmin.js"></script>
+<script>
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+
+  // Only superadmins can access this page
+  const { data: sa } = await sb
+    .from('superadmins')
+    .select('email')
+    .eq('email', session.user.email)
+    .maybeSingle();
+
+  if (!sa) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+
+  await renderNav('superadmin');
+  await initSuperAdmin();
+})();
+</script>
+</body>
+</html>
