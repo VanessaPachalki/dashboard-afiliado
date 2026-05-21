@@ -48,8 +48,14 @@
     <select id="fechSeller" style="flex:1;min-width:150px;">
       <option value="">Vendedor</option>
     </select>
-    <input type="date" id="fechStart" style="flex:0 0 auto;width:150px;color-scheme:dark;">
-    <input type="date" id="fechEnd" style="flex:0 0 auto;width:150px;color-scheme:dark;">
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <label for="fechStart" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Data inicial</label>
+      <input type="date" id="fechStart" style="width:150px;color-scheme:dark;">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <label for="fechEnd" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Data final</label>
+      <input type="date" id="fechEnd" style="width:150px;color-scheme:dark;">
+    </div>
     <button class="btn-sm" style="white-space:nowrap;" onclick="loadLives()">Buscar Lives</button>
   </div>
   <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
