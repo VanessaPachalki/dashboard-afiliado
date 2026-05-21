@@ -162,35 +162,33 @@ function applyBranding(agency) {
 
 // --- Step 4: Theme mode (dark/light/auto) ---
 
-function applyThemeMode(mode) {
-  const html = document.documentElement;
+function resolveMode(mode) {
   if (mode === 'auto') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-  } else {
-    html.setAttribute('data-theme', mode);
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+  return mode;
+}
+
+function applyThemeMode(mode) {
   localStorage.setItem('spacehub_theme_mode', mode);
+  document.documentElement.setAttribute('data-theme', resolveMode(mode));
 }
 
 function getThemeMode() {
   return localStorage.getItem('spacehub_theme_mode') || 'dark';
 }
 
-// Apply on load (synchronous)
+// Apply on load (synchronous — always set attribute explicitly)
 (function() {
-  const mode = localStorage.getItem('spacehub_theme_mode') || 'dark';
-  if (mode === 'auto') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-  } else if (mode === 'light') {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-  // dark = default (no attribute needed)
+  var mode = localStorage.getItem('spacehub_theme_mode') || 'dark';
+  var resolved = mode === 'auto'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : mode;
+  document.documentElement.setAttribute('data-theme', resolved);
 })();
 
 // Listen for system theme changes when in auto mode
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
   if (getThemeMode() === 'auto') applyThemeMode('auto');
 });
 

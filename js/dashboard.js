@@ -472,7 +472,7 @@ function renderComissao(){
   makeChart('cComissao',{
     type:'bar',
     data:{labels:ms.map(m=>(window.MLABEL||{})[m]||m),datasets:[
-      {label:'Recebida',data:ms.map(m=>Math.round(byM[m].rec)),backgroundColor:G},
+      {label:'Recebida',data:ms.map(m=>Math.round(byM[m].rec)),backgroundColor:O},
       {label:'Aguardando pagamento',data:ms.map(m=>Math.round(byM[m].aguardando)),backgroundColor:GR},
       {label:'Pendente',data:ms.map(m=>Math.round(byM[m].pendente)),backgroundColor:C},
       {label:'Perdida (inelegíveis)',data:ms.map(m=>Math.round(byM[m].perdida)),backgroundColor:R}
@@ -486,7 +486,7 @@ function renderStatus(){
   filtered.forEach(r=>{st[r[5]]++;});
   makeChart('cStatus',{
     type:'doughnut',
-    data:{labels:STLABEL,datasets:[{data:st,backgroundColor:[G,R,C,GR]}]},
+    data:{labels:STLABEL,datasets:[{data:st,backgroundColor:[O,R,C,GR]}]},
     options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
   });
 }
