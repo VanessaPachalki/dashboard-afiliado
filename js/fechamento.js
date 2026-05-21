@@ -313,6 +313,12 @@ function calcularFechamento() {
       ${selectedIdxs.length} live(s) selecionada(s) &mdash;
       <strong>${orders.length}</strong> de ${totalPeriodo} pedidos do período
     </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;">
+      <div class="kpi"><div class="kpi-v" style="color:var(--green);">${liquidados.length}</div><div class="kpi-l">Liquidados</div></div>
+      <div class="kpi"><div class="kpi-v" style="color:#9B59B6;">${cancelamentos.length}</div><div class="kpi-l">Cancelados</div></div>
+      <div class="kpi"><div class="kpi-v" style="color:var(--red);">${devolucoes.length}</div><div class="kpi-l">Devoluções</div></div>
+      <div class="kpi"><div class="kpi-v" style="color:var(--cream);">${itensDevolvidos}</div><div class="kpi-l">Itens Reembolsados</div></div>
+    </div>
   `;
 
   // Commission card
