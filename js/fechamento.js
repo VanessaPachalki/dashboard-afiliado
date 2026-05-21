@@ -392,19 +392,31 @@ function calcularFechamento() {
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderOrderTable(tbodyId, orders, type) {
+const TABLE_PER_PAGE = 10;
+const tablePages = {};
+
+function renderOrderTable(tbodyId, orders, type, page) {
   const tb = document.getElementById(tbodyId);
+  const pagId = 'pag' + tbodyId.replace('t', '');
+  if (!page) page = 1;
+  tablePages[tbodyId] = { orders, type, page };
+
   if (!orders.length) {
-    const cols = type === 'liquidado' ? 6 : 6;
-    tb.innerHTML = `<tr><td colspan="${cols}" style="color:var(--muted);text-align:center;">Nenhum pedido.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" style="color:var(--muted);text-align:center;">Nenhum pedido.</td></tr>`;
+    const pagEl = document.getElementById(pagId);
+    if (pagEl) pagEl.innerHTML = '';
     return;
   }
+
+  const totalPages = Math.ceil(orders.length / TABLE_PER_PAGE);
+  const start = (page - 1) * TABLE_PER_PAGE;
+  const pageOrders = orders.slice(start, start + TABLE_PER_PAGE);
 
   const fmtBRL = v => parseFloat(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
 
   if (type === 'liquidado') {
-    tb.innerHTML = orders.map(o => `<tr>
+    tb.innerHTML = pageOrders.map(o => `<tr>
       <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
       <td>${fmtDate(o.order_date)} ${o.hour}h</td>
       <td>${esc(o.product_name)}</td>
@@ -413,7 +425,7 @@ function renderOrderTable(tbodyId, orders, type) {
       <td class="r good" style="font-weight:700;">${fmtBRL(o.received_commission)}</td>
     </tr>`).join('');
   } else if (type === 'devolucao') {
-    tb.innerHTML = orders.map(o => `<tr>
+    tb.innerHTML = pageOrders.map(o => `<tr>
       <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
       <td>${fmtDate(o.order_date)} ${o.hour}h</td>
       <td>${esc(o.product_name)}</td>
@@ -422,7 +434,7 @@ function renderOrderTable(tbodyId, orders, type) {
       <td class="r bad" style="font-weight:700;">${o.items_refunded}</td>
     </tr>`).join('');
   } else if (type === 'cancelamento') {
-    tb.innerHTML = orders.map(o => `<tr>
+    tb.innerHTML = pageOrders.map(o => `<tr>
       <td style="font-size:11px;">${esc(o.tiktok_order_id)}</td>
       <td>${fmtDate(o.order_date)} ${o.hour}h</td>
       <td>${esc(o.product_name)}</td>
@@ -431,7 +443,7 @@ function renderOrderTable(tbodyId, orders, type) {
       <td class="r" style="color:#9B59B6;font-weight:700;">${fmtBRL(o.estimated_commission)}</td>
     </tr>`).join('');
   } else {
-    tb.innerHTML = orders.map(o => {
+    tb.innerHTML = pageOrders.map(o => {
       const label = STATUS_LABELS[o.settlement_status] || '?';
       const color = STATUS_COLORS[o.settlement_status] || 'var(--muted)';
       return `<tr>
@@ -443,5 +455,24 @@ function renderOrderTable(tbodyId, orders, type) {
         <td style="color:${color};font-weight:600;font-size:11px;">${label}</td>
       </tr>`;
     }).join('');
+  }
+
+  // Pagination
+  const pagEl = document.getElementById(pagId);
+  if (pagEl && totalPages > 1) {
+    let html = `<button ${page === 1 ? 'disabled' : ''} data-p="${page - 1}">&laquo;</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+      html += `<button class="${i === page ? 'active' : ''}" data-p="${i}">${i}</button>`;
+    }
+    html += `<button ${page === totalPages ? 'disabled' : ''} data-p="${page + 1}">&raquo;</button>`;
+    pagEl.innerHTML = html;
+    pagEl.querySelectorAll('button:not(:disabled)').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = tablePages[tbodyId];
+        renderOrderTable(tbodyId, d.orders, d.type, +btn.dataset.p);
+      });
+    });
+  } else if (pagEl) {
+    pagEl.innerHTML = '';
   }
 }
