@@ -40,6 +40,9 @@ async function initSettings() {
 
   // Update preview
   updatePreview();
+
+  // Set active mode button
+  updateModeButtons();
 }
 
 // ===== THEMES =====
@@ -63,7 +66,8 @@ async function selectTheme(color) {
   currentAgency.primary_color = color;
   renderThemes();
   updatePreview();
-  applyBranding({ ...window.AGENCY, primary_color: color });
+  window.AGENCY.primary_color = color;
+  applyBranding(window.AGENCY);
 
   msg.className = 'msg msg-ok';
   msg.textContent = 'Tema atualizado!';
@@ -133,47 +137,36 @@ async function handleLogoUpload(input) {
   msg.className = 'msg';
   msg.textContent = 'Enviando...';
 
-  // Upload to Supabase Storage
-  const ext = file.name.split('.').pop();
-  const path = `agency-logos/${currentAgency.id}/logo.${ext}`;
+  // Convert to base64 data URL (stored directly in DB — no storage needed)
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    const logoUrl = e.target.result; // data:image/png;base64,...
 
-  const { error: upErr } = await sb.storage
-    .from('xlsx-uploads')
-    .upload(path, file, { upsert: true, contentType: file.type });
+    const { error: saveErr } = await sb
+      .from('agencies')
+      .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
+      .eq('id', currentAgency.id);
 
-  if (upErr) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Erro no upload: ' + upErr.message;
-    return;
-  }
+    if (saveErr) {
+      msg.className = 'msg msg-err';
+      msg.textContent = 'Erro ao salvar: ' + saveErr.message;
+      return;
+    }
 
-  // Get public URL
-  const { data: urlData } = sb.storage.from('xlsx-uploads').getPublicUrl(path);
-  const logoUrl = urlData.publicUrl + '?t=' + Date.now();
+    currentAgency.logo_url = logoUrl;
+    updateLogoPreview();
+    updatePreview();
+    window.AGENCY.logo_url = logoUrl;
+    applyBranding(window.AGENCY);
 
-  // Save to agencies
-  const { error: saveErr } = await sb
-    .from('agencies')
-    .update({ logo_url: logoUrl, updated_at: new Date().toISOString() })
-    .eq('id', currentAgency.id);
+    const cacheKey = 'spacehub_tenant_' + window.__TENANT_SLUG;
+    sessionStorage.removeItem(cacheKey);
 
-  if (saveErr) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Erro ao salvar: ' + saveErr.message;
-    return;
-  }
-
-  currentAgency.logo_url = logoUrl;
-  updateLogoPreview();
-  updatePreview();
-  applyBranding({ ...window.AGENCY, logo_url: logoUrl, name: currentAgency.name });
-
-  const cacheKey = 'spacehub_tenant_' + window.__TENANT_SLUG;
-  sessionStorage.removeItem(cacheKey);
-
-  msg.className = 'msg msg-ok';
-  msg.textContent = 'Logo atualizada!';
-  input.value = '';
+    msg.className = 'msg msg-ok';
+    msg.textContent = 'Logo atualizada!';
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
 }
 
 async function removeLogo() {
@@ -196,7 +189,8 @@ async function removeLogo() {
   currentAgency.logo_url = null;
   updateLogoPreview();
   updatePreview();
-  applyBranding({ ...window.AGENCY, logo_url: null, name: currentAgency.name });
+  window.AGENCY.logo_url = null;
+  applyBranding(window.AGENCY);
 
   const cacheKey = 'spacehub_tenant_' + window.__TENANT_SLUG;
   sessionStorage.removeItem(cacheKey);
@@ -249,5 +243,22 @@ function updatePreview() {
   // Update KPI accent color
   document.querySelectorAll('.preview-card .kpi-v').forEach((el, i) => {
     if (i === 0) el.style.color = color;
+  });
+}
+
+// ===== APPEARANCE MODE =====
+
+function setMode(mode) {
+  applyThemeMode(mode);
+  updateModeButtons();
+}
+
+function updateModeButtons() {
+  const current = getThemeMode();
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    const isActive = btn.dataset.mode === current;
+    btn.style.background = isActive ? 'var(--orange)' : 'transparent';
+    btn.style.color = isActive ? '#fff' : 'var(--muted)';
+    btn.style.border = isActive ? 'none' : '1px solid var(--border)';
   });
 }

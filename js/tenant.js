@@ -116,8 +116,8 @@ async function resolveTenant() {
 function applyBranding(agency) {
   const root = document.documentElement;
 
-  // Override primary color
-  if (agency.primary_color && agency.primary_color !== '#E8551B') {
+  // Override primary color (always apply — even default, in case switching back)
+  if (agency.primary_color) {
     root.style.setProperty('--orange', agency.primary_color);
     root.style.setProperty('--orange-soft', agency.primary_color + '30');
   }
@@ -159,6 +159,40 @@ function applyBranding(agency) {
   // Show body (was hidden to prevent FOUC)
   document.body.style.visibility = 'visible';
 }
+
+// --- Step 4: Theme mode (dark/light/auto) ---
+
+function applyThemeMode(mode) {
+  const html = document.documentElement;
+  if (mode === 'auto') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  } else {
+    html.setAttribute('data-theme', mode);
+  }
+  localStorage.setItem('spacehub_theme_mode', mode);
+}
+
+function getThemeMode() {
+  return localStorage.getItem('spacehub_theme_mode') || 'dark';
+}
+
+// Apply on load (synchronous)
+(function() {
+  const mode = localStorage.getItem('spacehub_theme_mode') || 'dark';
+  if (mode === 'auto') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  } else if (mode === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+  // dark = default (no attribute needed)
+})();
+
+// Listen for system theme changes when in auto mode
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (getThemeMode() === 'auto') applyThemeMode('auto');
+});
 
 // --- Helper: get current agency ID (used by all queries) ---
 
