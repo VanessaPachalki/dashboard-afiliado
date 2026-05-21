@@ -443,7 +443,7 @@ function calcularFechamento() {
   const naoPagouStores = groupByStore(cancelamentos);   // items_refunded = 0 → não pagou
   const cancelouStores = groupByStore(devolucoes);       // items_refunded > 0 → cancelou/devolveu
 
-  const pieColors = ['#E8551B', '#3CB371', '#4EC9B0', '#D4A76A', '#9B59B6', '#3498DB', '#E67E22', '#1ABC9C', '#E74C3C', '#95A5A6'];
+  const pieColors = [window.BRAND_COLOR || '#E8551B', '#3CB371', '#4EC9B0', '#D4A76A', '#9B59B6', '#3498DB', '#E67E22', '#1ABC9C', '#E74C3C', '#95A5A6'];
 
   const pieOpts = (tooltipFn) => ({
     responsive: true,

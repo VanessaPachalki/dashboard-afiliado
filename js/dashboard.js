@@ -13,7 +13,9 @@ Chart.defaults.font.size = 11;
 Chart.defaults.plugins.legend.labels.usePointStyle = true;
 Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
 
-const O=(window.BRAND_COLOR||'#E8551B'),T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',OA=(window.BRAND_COLOR_ALPHA||'#E8551B30'),TA='#4EC9B030';
+let O='#E8551B',OA='#E8551B30';
+const T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',TA='#4EC9B030';
+function syncBrandColor(){O=window.BRAND_COLOR||'#E8551B';OA=(window.BRAND_COLOR||'#E8551B')+'30';}
 const LK='#9B59B6',VT='#E67E22';
 const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'];
 const STLABEL = ['Liquidado','Inelegível','Pendente','Aguardando Pagamento'];
@@ -48,6 +50,7 @@ function setCache(key, data) {
 // ===== DATA LOADING =====
 
 async function loadData(targetUserId, accountId) {
+  syncBrandColor();
   const el = document.getElementById('loading');
   if (el) el.style.display = 'flex';
 
