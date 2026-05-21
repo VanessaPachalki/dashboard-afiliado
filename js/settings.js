@@ -35,10 +35,18 @@ async function initSettings() {
   // Render themes
   renderThemes();
 
-  // Load logo preview + size
+  // Load logo preview + size slider
   updateLogoPreview();
-  document.getElementById('logoSize').value = currentAgency.logo_height || 32;
-  document.getElementById('logoSizeLabel').textContent = (currentAgency.logo_height || 32) + 'px';
+  const sizeSlider = document.getElementById('logoSize');
+  const sizeLabel = document.getElementById('logoSizeLabel');
+  sizeSlider.value = currentAgency.logo_height || 32;
+  sizeLabel.textContent = (currentAgency.logo_height || 32) + 'px';
+  sizeSlider.addEventListener('input', function() {
+    previewLogoSize(this.value);
+  });
+  sizeSlider.addEventListener('change', function() {
+    saveLogoSize(this.value);
+  });
 
   // Update preview
   updatePreview();
