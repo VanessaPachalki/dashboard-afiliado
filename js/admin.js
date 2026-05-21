@@ -32,10 +32,12 @@ let allEmails = [];
 let emailsPage = 1;
 
 async function loadEmails() {
-  const { data, error } = await sb
-    .from('approved_emails')
+  let q = sb
+    .from('agency_members')
     .select('*')
     .order('created_at', { ascending: false });
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { data, error } = await q;
 
   allEmails = data || [];
   emailsPage = 1;
@@ -56,7 +58,7 @@ function renderEmails() {
 
   tb.innerHTML = page.map(e => {
     const date = new Date(e.created_at).toLocaleDateString('pt-BR');
-    const roleTag = e.role === 'admin'
+    const roleTag = (e.role === 'admin' || e.role === 'agency_admin')
       ? '<span style="color:var(--orange);font-weight:600;">Admin</span>'
       : '<span style="color:var(--muted);">Afiliado</span>';
     return `<tr>
@@ -87,8 +89,11 @@ async function addEmail() {
     return;
   }
 
+  // Map role: admin → agency_admin for agency_members table
+  const memberRole = role === 'admin' ? 'agency_admin' : 'affiliate';
+
   // Optimistic: add to local list + render immediately
-  const optimistic = { email, role, display_name: name || null, created_at: new Date().toISOString() };
+  const optimistic = { email, role: memberRole, display_name: name || null, agency_id: agencyId(), created_at: new Date().toISOString() };
   allEmails.unshift(optimistic);
   emailsPage = 1;
   renderEmails();
@@ -101,8 +106,8 @@ async function addEmail() {
   refreshAccountEmailDropdown();
 
   // Sync with DB in background
-  const { error } = await sb.from('approved_emails').insert({
-    email, role, display_name: name || null
+  const { error } = await sb.from('agency_members').insert({
+    email, role: memberRole, display_name: name || null, agency_id: agencyId()
   });
 
   if (error) {
@@ -123,7 +128,9 @@ async function removeEmail(email) {
   renderEmails();
   refreshAccountEmailDropdown();
 
-  const { error } = await sb.from('approved_emails').delete().eq('email', email);
+  let delQuery = sb.from('agency_members').delete().eq('email', email);
+  if (agencyId()) delQuery = delQuery.eq('agency_id', agencyId());
+  const { error } = await delQuery;
   if (error) {
     // Rollback
     if (removed) allEmails.unshift(removed);
@@ -150,15 +157,13 @@ let allAccounts = [];
 let accountsPage = 1;
 
 async function loadAccounts() {
-  const { data: accounts, error } = await sb
-    .from('accounts')
-    .select('*')
-    .order('created_at', { ascending: false });
+  let accQ = sb.from('accounts').select('*').order('created_at', { ascending: false });
+  if (agencyId()) accQ = accQ.eq('agency_id', agencyId());
+  const { data: accounts, error } = await accQ;
 
-  const { data: emails } = await sb
-    .from('approved_emails')
-    .select('email, display_name')
-    .order('email');
+  let memQ = sb.from('agency_members').select('email, display_name').order('email');
+  if (agencyId()) memQ = memQ.eq('agency_id', agencyId());
+  const { data: emails } = await memQ;
 
   const select = document.getElementById('newAccountEmail');
   select.innerHTML = '<option value="">Selecione o e-mail</option>';
@@ -228,7 +233,7 @@ async function addAccount() {
   document.getElementById('newAccountName').value = '';
   document.getElementById('newAccountEmail').value = '';
 
-  const { data, error } = await sb.from('accounts').insert({ email, name }).select().single();
+  const { data, error } = await sb.from('accounts').insert({ email, name, agency_id: agencyId() }).select().single();
 
   if (error) {
     // Rollback
@@ -264,10 +269,9 @@ let allAttempts = [];
 let attemptsPage = 1;
 
 async function loadLoginAttempts() {
-  const { data, error } = await sb
-    .from('login_attempts')
-    .select('*')
-    .order('attempted_at', { ascending: false });
+  let attQ = sb.from('login_attempts').select('*').order('attempted_at', { ascending: false });
+  if (agencyId()) attQ = attQ.eq('agency_id', agencyId());
+  const { data, error } = await attQ;
 
   const tb = document.getElementById('tAttempts');
   if (error || !data?.length) {
@@ -341,10 +345,9 @@ let allUploads = [];
 let uploadsPage = 1;
 
 async function loadAllUploads() {
-  const { data: uploads, error } = await sb
-    .from('uploads')
-    .select('*, accounts(name, email)')
-    .order('uploaded_at', { ascending: false });
+  let upQ = sb.from('uploads').select('*, accounts(name, email)').order('uploaded_at', { ascending: false });
+  if (agencyId()) upQ = upQ.eq('agency_id', agencyId());
+  const { data: uploads, error } = await upQ;
 
   allUploads = uploads || [];
 

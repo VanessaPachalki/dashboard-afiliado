@@ -1,0 +1,15 @@
+{
+  "name": "spacehub-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SPACEHUB — Dashboard de Performance para Afiliados TikTok Shop",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "npx serve dist"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1",
+    "terser": "^5.37.0",
+    "clean-css": "^5.3.3"
+  }
+}

@@ -43,11 +43,13 @@ async function loadAccounts() {
   const session = await getSession();
   if (!session) return;
 
-  const { data: accounts } = await sb
+  let accQuery = sb
     .from('accounts')
     .select('id, name')
     .eq('email', session.user.email)
     .order('name');
+  if (agencyId()) accQuery = accQuery.eq('agency_id', agencyId());
+  const { data: accounts } = await accQuery;
 
   const select = document.getElementById('accountSelect');
   const selector = document.getElementById('accountSelector');
@@ -150,7 +152,7 @@ async function processFile(file) {
     // Create upload record
     const { data: upload, error: upErr } = await sb
       .from('uploads')
-      .insert({ user_id: userId, account_id: accountId, filename: file.name, row_count: rows.length })
+      .insert({ user_id: userId, account_id: accountId, agency_id: agencyId(), filename: file.name, row_count: rows.length })
       .select()
       .single();
 
@@ -229,6 +231,7 @@ function parseRow(row, uploadId, userId, accountId) {
       upload_id: uploadId,
       user_id: userId,
       account_id: accountId,
+      agency_id: agencyId(),
       tiktok_order_id: String(row[COL.orderId] || ''),
       sku_id: String(row[COL.skuId] || ''),
       month,
@@ -258,10 +261,12 @@ async function loadUploads() {
   const loadEl = document.getElementById('listLoading');
   loadEl.style.display = 'flex';
 
-  const { data: uploads, error } = await sb
+  let upQuery = sb
     .from('uploads')
     .select('*, accounts(name)')
     .order('uploaded_at', { ascending: false });
+  if (agencyId()) upQuery = upQuery.eq('agency_id', agencyId());
+  const { data: uploads, error } = await upQuery;
 
   loadEl.style.display = 'none';
 

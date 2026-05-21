@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data: *.supabase.co https:;">
+<style>body{visibility:hidden}</style>
 <title>SPACEHUB — Login</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -41,6 +42,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
 <script>
 // Google OAuth
 async function handleGoogle() {
@@ -55,29 +57,69 @@ async function handleGoogle() {
   }
 }
 
-// Check session on load
+// Resolve tenant + check session
 (async () => {
+  await resolveTenant();
+
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     const email = session.user.email;
-    const { data: approved } = await sb
-      .from('approved_emails')
-      .select('role')
-      .eq('email', email)
-      .maybeSingle();
+    const agency = window.AGENCY;
 
-    if (!approved) {
-      // Registrar tentativa bloqueada antes de deslogar
-      const { error: logErr } = await sb.from('login_attempts').insert({ email });
+    // If on agency subdomain, check agency_members
+    // If on superadmin portal, check superadmins
+    let role = null;
+
+    if (agency?.id) {
+      // Agency subdomain → check membership
+      const { data: member } = await sb
+        .from('agency_members')
+        .select('role')
+        .eq('agency_id', agency.id)
+        .eq('email', email)
+        .maybeSingle();
+
+      if (member) {
+        role = member.role;
+      } else {
+        // Check if superadmin (can access any agency)
+        const { data: sa } = await sb
+          .from('superadmins')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+        if (sa) role = 'agency_admin';
+      }
+    } else {
+      // Superadmin portal
+      const { data: sa } = await sb
+        .from('superadmins')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+      if (sa) role = 'superadmin';
+    }
+
+    if (!role) {
+      const { error: logErr } = await sb.from('login_attempts').insert({
+        email,
+        agency_id: agency?.id || null
+      });
       console.log('login_attempt insert:', logErr ? logErr : 'ok');
       await sb.auth.signOut();
       const msg = document.getElementById('msg');
       msg.className = 'msg msg-err';
-      msg.textContent = 'E-mail não autorizado. Esta plataforma é exclusiva para agenciados da SPACEHUB. Se você é um dos nossos, entre em contato com a equipe.';
+      msg.textContent = 'E-mail não autorizado. Se você é um dos nossos, entre em contato com a equipe.';
       return;
     }
 
-    window.location.href = approved.role === 'admin' ? 'admin.html' : 'dashboard.html';
+    if (role === 'superadmin' && !agency?.id) {
+      window.location.href = 'superadmin.html';
+    } else if (role === 'agency_admin') {
+      window.location.href = 'admin.html';
+    } else {
+      window.location.href = 'dashboard.html';
+    }
   }
 })();
 </script>

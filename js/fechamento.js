@@ -13,10 +13,9 @@ let fetchedOrders = []; // all orders for the selected period+account+lives
 // ===== INIT =====
 
 async function initFechamento() {
-  const { data: accounts } = await sb
-    .from('accounts')
-    .select('id, name, email')
-    .order('name');
+  let accQ = sb.from('accounts').select('id, name, email').order('name');
+  if (agencyId()) accQ = accQ.eq('agency_id', agencyId());
+  const { data: accounts } = await accQ;
 
   allAccountsList = accounts || [];
 
@@ -36,10 +35,9 @@ async function initFechamento() {
 // ===== SELLERS CRUD =====
 
 async function loadSellers() {
-  const { data, error } = await sb
-    .from('sellers')
-    .select('*, accounts(name)')
-    .order('created_at', { ascending: false });
+  let selQ = sb.from('sellers').select('*, accounts(name)').order('created_at', { ascending: false });
+  if (agencyId()) selQ = selQ.eq('agency_id', agencyId());
+  const { data, error } = await selQ;
 
   allSellers = data || [];
   renderSellers();
@@ -95,7 +93,7 @@ async function addSeller() {
   document.getElementById('sellerPct').value = '';
 
   const { data, error } = await sb.from('sellers').insert({
-    account_id: accountId, name, commission_pct: pct
+    account_id: accountId, name, commission_pct: pct, agency_id: agencyId()
   }).select('*, accounts(name)').single();
 
   if (error) {
@@ -160,7 +158,7 @@ async function loadLives() {
   msg.className = 'msg'; msg.textContent = 'Buscando pedidos...';
 
   // Fetch only Live orders for the account in the date range
-  const { data: orders, error } = await sb
+  let ordQ = sb
     .from('orders')
     .select('*')
     .eq('account_id', accountId)
@@ -168,6 +166,8 @@ async function loadLives() {
     .gte('order_date', start)
     .lte('order_date', end)
     .order('order_date', { ascending: true });
+  if (agencyId()) ordQ = ordQ.eq('agency_id', agencyId());
+  const { data: orders, error } = await ordQ;
 
   if (error) {
     msg.className = 'msg msg-err';

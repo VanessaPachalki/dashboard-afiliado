@@ -1,5 +1,5 @@
 // ================================================
-// SPACEHUB - Auth helpers
+// SPACEHUB - Auth helpers (Multi-Tenant)
 // ================================================
 
 async function getSession() {
@@ -14,31 +14,86 @@ async function requireAuth() {
     return null;
   }
 
-  // Verificar se e-mail está na lista de autorizados
-  const { data: approved } = await sb
-    .from('approved_emails')
-    .select('email')
-    .eq('email', session.user.email)
-    .maybeSingle();
+  const email = session.user.email;
+  const agency = window.AGENCY;
 
-  if (!approved) {
-    await sb.auth.signOut();
-    window.location.href = 'index.html';
-    return null;
+  // Superadmin portal (no subdomain) — only superadmins allowed
+  if (!agency?.id) {
+    const { data: sa } = await sb
+      .from('superadmins')
+      .select('email')
+      .eq('email', email)
+      .maybeSingle();
+    if (!sa) {
+      await sb.auth.signOut();
+      window.location.href = 'index.html';
+      return null;
+    }
+    return session;
   }
 
-  return session;
+  // Agency subdomain — check agency_members
+  const { data: member } = await sb
+    .from('agency_members')
+    .select('email, role, display_name')
+    .eq('agency_id', agency.id)
+    .eq('email', email)
+    .maybeSingle();
+
+  if (member) return session;
+
+  // Not a member — maybe superadmin?
+  const { data: sa } = await sb
+    .from('superadmins')
+    .select('email')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (sa) return session;
+
+  // Not authorized
+  await sb.auth.signOut();
+  window.location.href = 'index.html';
+  return null;
 }
 
 async function getUserRole() {
   const session = await getSession();
   if (!session) return null;
-  const { data } = await sb
-    .from('approved_emails')
-    .select('role, display_name')
-    .eq('email', session.user.email)
+
+  const email = session.user.email;
+  const agency = window.AGENCY;
+
+  // Superadmin check first
+  const { data: sa } = await sb
+    .from('superadmins')
+    .select('email, display_name')
+    .eq('email', email)
     .maybeSingle();
-  return data;
+
+  if (sa) {
+    return { role: 'admin', display_name: sa.display_name || email, is_superadmin: true };
+  }
+
+  // Agency member
+  if (agency?.id) {
+    const { data: member } = await sb
+      .from('agency_members')
+      .select('role, display_name')
+      .eq('agency_id', agency.id)
+      .eq('email', email)
+      .maybeSingle();
+
+    if (member) {
+      return {
+        role: member.role === 'agency_admin' ? 'admin' : 'affiliate',
+        display_name: member.display_name || email,
+        is_superadmin: false
+      };
+    }
+  }
+
+  return null;
 }
 
 async function logout() {
@@ -63,6 +118,9 @@ async function renderNav(activePage) {
   if (isAdmin) {
     links += `<a href="fechamento.html" class="${activePage === 'fechamento' ? 'active' : ''}">Fechamento</a>`;
     links += `<a href="admin.html" class="${activePage === 'admin' ? 'active' : ''}">Admin</a>`;
+  }
+  if (userInfo?.is_superadmin) {
+    links += `<a href="superadmin.html" class="${activePage === 'superadmin' ? 'active' : ''}" style="color:var(--orange);">Super</a>`;
   }
   links += `
     <span style="color:var(--muted);font-size:11px;">${name}</span>

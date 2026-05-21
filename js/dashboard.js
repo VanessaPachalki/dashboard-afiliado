@@ -13,7 +13,7 @@ Chart.defaults.font.size = 11;
 Chart.defaults.plugins.legend.labels.usePointStyle = true;
 Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
 
-const O='#E8551B',T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',OA='#E8551B30',TA='#4EC9B030';
+const O=(window.BRAND_COLOR||'#E8551B'),T='#4EC9B0',C='#D4A76A',G='#3CB371',R='#D9534F',GR='#666',OA=(window.BRAND_COLOR_ALPHA||'#E8551B30'),TA='#4EC9B030';
 const LK='#9B59B6',VT='#E67E22';
 const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sab','Dom'];
 const STLABEL = ['Liquidado','Inelegível','Pendente','Aguardando Pagamento'];
@@ -66,6 +66,9 @@ async function loadData(targetUserId, accountId) {
         .select('month, order_date, hour, day_of_week, gmv, settlement_status, content_type, store_name, product_name, content_id, items_sold, items_refunded, estimated_commission, received_commission')
         .order('order_date', { ascending: false })
         .range(from, from + PAGE - 1);
+
+      // Multi-tenant: filter by agency
+      if (agencyId()) query = query.eq('agency_id', agencyId());
 
       if (targetUserId) {
         query = query.eq('user_id', targetUserId);
