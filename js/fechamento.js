@@ -305,12 +305,13 @@ function calcularFechamento() {
   const fmtDate = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  const totalPeriodo = fetchedOrders.length;
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;
       ${fmtDate(start)} a ${fmtDate(end)} &mdash;
-      ${selectedIdxs.length} conteúdo(s) selecionado(s) &mdash;
-      ${orders.length} pedidos totais
+      ${selectedIdxs.length} live(s) selecionada(s) &mdash;
+      <strong>${orders.length}</strong> de ${totalPeriodo} pedidos do período
     </div>
   `;
 
