@@ -226,11 +226,12 @@ tr:hover td { background:var(--card-hover); }
   padding:8px 12px; border-radius:6px; border:1px solid var(--border);
   background:var(--bg); color:var(--text); font-size:12px;
 }
-.add-row .btn-sm {
+.btn-sm {
   padding:8px 16px; border-radius:6px; border:none;
   background:var(--orange); color:#fff; font-size:12px; font-weight:600;
-  cursor:pointer;
+  cursor:pointer; transition:opacity 0.15s;
 }
+.btn-sm:hover { opacity:0.9; }
 
 /* PAGINATION */
 .pag { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:12px; min-height:32px; }
