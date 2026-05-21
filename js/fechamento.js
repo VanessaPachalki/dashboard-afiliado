@@ -194,14 +194,15 @@ async function loadLives() {
         content_type: o.content_type,
         dates: new Set(),
         hours: new Set(),
+        stores: new Set(),
         order_count: 0,
         gmv: 0,
         liquidados: 0,
         devolucoes: 0,
-        cancelamentos: 0,
-        store_name: o.store_name
+        cancelamentos: 0
       };
     }
+    liveMap[key].stores.add(o.store_name);
     liveMap[key].dates.add(o.order_date);
     liveMap[key].hours.add(o.hour);
     liveMap[key].order_count++;
@@ -243,13 +244,17 @@ function renderLives() {
     const minH = String(hours[0]).padStart(2, '0');
     const maxH = String(hours[hours.length - 1]).padStart(2, '0');
     const fmtGMV = l.gmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const storeNames = [...l.stores].sort();
+    const storesHtml = storeNames.map(s =>
+      `<span style="color:var(--muted);font-size:11px;background:rgba(255,255,255,0.04);padding:1px 6px;border-radius:3px;">${esc(s)}</span>`
+    ).join(' ');
 
     return `<div class="live-item" style="padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="display:flex;align-items:center;gap:10px;">
         <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;cursor:pointer;">
         <span class="tag tag-l">Live</span>
         <strong style="color:var(--text);font-size:13px;">${esc(l.content_id)}</strong>
-        <span style="color:var(--muted);font-size:12px;">${esc(l.store_name)}</span>
+        <span style="display:flex;gap:4px;flex-wrap:wrap;">${storesHtml}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--muted);">${dateStr}</span>
         <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:4px;">${minH}:00 – ${maxH}:59</span>
       </div>
