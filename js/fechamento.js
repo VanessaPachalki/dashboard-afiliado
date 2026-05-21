@@ -355,7 +355,7 @@ function calcularFechamento() {
   };
 
   // Destroy old charts
-  ['chartLiquidados', 'chartCancelamentos', 'chartDevolucoes'].forEach(id => {
+  ['chartLiquidados', 'chartNaoPagou', 'chartCancelou'].forEach(id => {
     const existing = Chart.getChart(id);
     if (existing) existing.destroy();
   });
@@ -373,8 +373,8 @@ function calcularFechamento() {
   }
 
   const liqStores = groupByStore(liquidados);
-  const cancelStores = groupByStore(cancelamentos);
-  const devolStores = groupByStore(devolucoes);
+  const naoPagouStores = groupByStore(cancelamentos);   // items_refunded = 0 → não pagou
+  const cancelouStores = groupByStore(devolucoes);       // items_refunded > 0 → cancelou/devolveu
 
   const pieColors = ['#E8551B', '#3CB371', '#4EC9B0', '#D4A76A', '#9B59B6', '#3498DB', '#E67E22', '#1ABC9C', '#E74C3C', '#95A5A6'];
 
@@ -401,74 +401,33 @@ function calcularFechamento() {
     options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${liqStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
 
-  // Chart: Cancelamentos
-  new Chart(document.getElementById('chartCancelamentos'), {
+  // Chart: Não Pagou
+  new Chart(document.getElementById('chartNaoPagou'), {
     type: 'doughnut',
     data: {
-      labels: cancelStores.length ? cancelStores.map(([s]) => s) : ['Nenhum'],
+      labels: naoPagouStores.length ? naoPagouStores.map(([s]) => s) : ['Nenhum'],
       datasets: [{
-        data: cancelStores.length ? cancelStores.map(([, v]) => v.gmv) : [0],
-        backgroundColor: pieColors.slice(0, cancelStores.length || 1),
+        data: naoPagouStores.length ? naoPagouStores.map(([, v]) => v.gmv) : [0],
+        backgroundColor: pieColors.slice(0, naoPagouStores.length || 1),
         borderWidth: 0
       }]
     },
-    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${cancelStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
+    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${naoPagouStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
 
-  // Chart: Devoluções
-  new Chart(document.getElementById('chartDevolucoes'), {
+  // Chart: Cancelou / Devolveu
+  new Chart(document.getElementById('chartCancelou'), {
     type: 'doughnut',
     data: {
-      labels: devolStores.length ? devolStores.map(([s]) => s) : ['Nenhum'],
+      labels: cancelouStores.length ? cancelouStores.map(([s]) => s) : ['Nenhum'],
       datasets: [{
-        data: devolStores.length ? devolStores.map(([, v]) => v.gmv) : [0],
-        backgroundColor: pieColors.slice(0, devolStores.length || 1),
+        data: cancelouStores.length ? cancelouStores.map(([, v]) => v.gmv) : [0],
+        backgroundColor: pieColors.slice(0, cancelouStores.length || 1),
         borderWidth: 0
       }]
     },
-    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${devolStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
+    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${cancelouStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
-
-  // Detailed summary table
-  document.getElementById('statusBreakdown').innerHTML = `
-    <table style="width:100%;font-size:12px;">
-      <tr>
-        <td><span style="color:${chartColors.liq};">&#9679;</span> Liquidados</td>
-        <td class="r"><strong>${liquidados.length}</strong> pedidos</td>
-        <td class="r" style="color:${chartColors.liq};font-weight:700;">${fmtBRL(gmvLiq)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${chartColors.devol};">&#9679;</span> Devoluções <span style="font-size:10px;color:var(--muted);">(recebeu e devolveu)</span></td>
-        <td class="r"><strong>${devolucoes.length}</strong> pedidos</td>
-        <td class="r" style="color:${chartColors.devol};font-weight:700;">${fmtBRL(gmvDevol)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${chartColors.cancel};">&#9679;</span> Cancelamentos <span style="font-size:10px;color:var(--muted);">(cancelou antes de receber)</span></td>
-        <td class="r"><strong>${cancelamentos.length}</strong> pedidos</td>
-        <td class="r" style="color:${chartColors.cancel};font-weight:700;">${fmtBRL(gmvCancel)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${chartColors.pend};">&#9679;</span> Pendentes</td>
-        <td class="r"><strong>${pendentes.length}</strong> pedidos</td>
-        <td class="r" style="color:${chartColors.pend};font-weight:700;">${fmtBRL(gmvPend)}</td>
-      </tr>
-      <tr>
-        <td><span style="color:${chartColors.aguard};">&#9679;</span> Aguardando Pagamento</td>
-        <td class="r"><strong>${aguardando.length}</strong> pedidos</td>
-        <td class="r" style="color:${chartColors.aguard};font-weight:700;">${fmtBRL(gmvAguard)}</td>
-      </tr>
-      <tr style="border-top:2px solid var(--border);">
-        <td><strong>Total</strong></td>
-        <td class="r"><strong>${orders.length}</strong> pedidos</td>
-        <td class="r" style="font-weight:700;">${fmtBRL(gmvTotal)}</td>
-      </tr>
-    </table>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);">
-      Itens vendidos: <strong style="color:var(--text);">${itensVendidos}</strong> &mdash;
-      Itens devolvidos: <strong style="color:var(--red);">${itensDevolvidos}</strong>
-      ${itensVendidos > 0 ? `(${((itensDevolvidos / itensVendidos) * 100).toFixed(1)}% de devolução)` : ''}
-    </div>
-  `;
 
   // Scroll to result
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
