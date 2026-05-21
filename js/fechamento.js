@@ -136,11 +136,12 @@ async function loadLives() {
 
   msg.className = 'msg'; msg.textContent = 'Buscando pedidos...';
 
-  // Fetch all orders for the account in the date range (all content types, not just lives)
+  // Fetch only Live orders for the account in the date range
   const { data: orders, error } = await sb
     .from('orders')
     .select('*')
     .eq('account_id', accountId)
+    .eq('content_type', 0)
     .gte('order_date', start)
     .lte('order_date', end)
     .order('order_date', { ascending: true });
