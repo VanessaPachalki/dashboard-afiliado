@@ -6,8 +6,12 @@ let RAW = [];
 let filtered = [];
 let charts = {};
 
-Chart.defaults.color = '#666';
-Chart.defaults.borderColor = '#1a1a1a';
+function syncChartTheme(){
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  Chart.defaults.color = isLight ? '#555' : '#666';
+  Chart.defaults.borderColor = isLight ? '#e0e0e0' : '#1a1a1a';
+}
+syncChartTheme();
 Chart.defaults.font.family = "'Inter','Segoe UI',sans-serif";
 Chart.defaults.font.size = 11;
 Chart.defaults.plugins.legend.labels.usePointStyle = true;
@@ -51,6 +55,7 @@ function setCache(key, data) {
 
 async function loadData(targetUserId, accountId) {
   syncBrandColor();
+  syncChartTheme();
   const el = document.getElementById('loading');
   if (el) el.style.display = 'flex';
 

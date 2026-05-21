@@ -22,13 +22,12 @@
 }
 [data-theme="light"] .topbar { background:rgba(245,245,247,0.92); }
 [data-theme="light"] th { background:#f0f0f0; }
-[data-theme="light"] td { border-bottom-color:#eee; }
 [data-theme="light"] tr:hover td { background:#f8f8f8; }
-[data-theme="light"] .maturity-bar { background:#e0e0e0; }
-[data-theme="light"] .mini-bar { background:#e0e0e0; }
 [data-theme="light"] .spinner { border-color:#e0e0e0; border-top-color:var(--orange); }
-[data-theme="light"] .kpi-v { color:#1a1a1a; }
-[data-theme="light"] .kpi.main .kpi-v { color:var(--orange); }
+[data-theme="light"] .info-tip { background:rgba(0,0,0,0.05); border-color:rgba(0,0,0,0.1); }
+[data-theme="light"] .info-tip:hover { background:rgba(0,0,0,0.1); border-color:rgba(0,0,0,0.15); }
+[data-theme="light"] .info-tip .tip-text { background:#fff; box-shadow:0 8px 24px rgba(0,0,0,0.12); }
+[data-theme="light"] .field select, [data-theme="light"] .field input { color-scheme:light; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Inter','Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:13px; }
 
@@ -56,7 +55,7 @@ body { font-family:'Inter','Segoe UI',system-ui,sans-serif; background:var(--bg)
 .kpi-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:24px; }
 .kpi { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center; transition:border-color 0.2s; }
 .kpi:hover { border-color:var(--orange); }
-.kpi-v { font-size:22px; font-weight:800; color:#fff; }
+.kpi-v { font-size:22px; font-weight:800; color:var(--text); }
 .kpi-l { font-size:9px; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); margin-top:2px; }
 .kpi.main { border-color:var(--orange); }
 .kpi.main .kpi-v { color:var(--orange); }
@@ -92,8 +91,8 @@ body { font-family:'Inter','Segoe UI',system-ui,sans-serif; background:var(--bg)
 /* TABLES */
 .tbl { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; font-size:12px; }
-th { background:#0c0c0c; color:var(--muted); font-weight:600; padding:8px 10px; text-align:left; text-transform:uppercase; font-size:10px; letter-spacing:0.6px; position:sticky;top:0; }
-td { padding:8px 10px; border-bottom:1px solid #1a1a1a; }
+th { background:var(--bg); color:var(--muted); font-weight:600; padding:8px 10px; text-align:left; text-transform:uppercase; font-size:10px; letter-spacing:0.6px; position:sticky;top:0; }
+td { padding:8px 10px; border-bottom:1px solid var(--border); }
 tr:hover td { background:var(--card-hover); }
 .r { text-align:right; font-variant-numeric:tabular-nums; }
 .good { color:var(--green); }
@@ -110,14 +109,14 @@ tr:hover td { background:var(--card-hover); }
 /* MATURITY BAR */
 .maturity { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px 18px; margin-bottom:20px; display:none; }
 .maturity-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:8px; }
-.maturity-bar { height:8px; border-radius:4px; background:#1a1a1a; overflow:hidden; display:flex; }
+.maturity-bar { height:8px; border-radius:4px; background:var(--border); overflow:hidden; display:flex; }
 .maturity-bar .seg { height:100%; transition:width 0.4s; }
 .maturity-info { display:flex; gap:16px; margin-top:8px; font-size:11px; color:var(--muted); }
 .maturity-info span { display:flex; align-items:center; gap:4px; }
 .maturity-info .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
 
 /* MINI PROGRESS */
-.mini-bar { display:inline-block; width:48px; height:6px; border-radius:3px; background:#1a1a1a; overflow:hidden; vertical-align:middle; margin-left:4px; }
+.mini-bar { display:inline-block; width:48px; height:6px; border-radius:3px; background:var(--border); overflow:hidden; vertical-align:middle; margin-left:4px; }
 .mini-bar .fill { height:100%; border-radius:3px; }
 
 /* DIM unreliable */
@@ -199,7 +198,7 @@ tr:hover td { background:var(--card-hover); }
 .upload-zone .icon { font-size:36px; margin-bottom:8px; color:var(--muted); }
 .upload-zone p { color:var(--muted); font-size:13px; }
 .upload-zone .browse { color:var(--orange); font-weight:600; cursor:pointer; }
-.progress-bar { height:6px; border-radius:3px; background:#1a1a1a; margin-top:16px; overflow:hidden; display:none; }
+.progress-bar { height:6px; border-radius:3px; background:var(--border); margin-top:16px; overflow:hidden; display:none; }
 .progress-bar .fill { height:100%; background:var(--orange); border-radius:3px; transition:width 0.3s; }
 .upload-list { margin-top:24px; }
 .upload-item {

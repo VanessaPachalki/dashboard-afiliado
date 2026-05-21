@@ -234,6 +234,9 @@ function renderLives() {
   document.getElementById('resultSection').style.display = 'none';
   document.getElementById('checkAll').checked = false;
 
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const subtleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+
   list.innerHTML = foundLives.map((l, i) => {
     const dates = [...l.dates].sort();
     const dateStr = dates.map(d => {
@@ -246,7 +249,7 @@ function renderLives() {
     const fmtGMV = l.gmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const storeNames = [...l.stores].sort();
     const storesHtml = storeNames.map(s =>
-      `<span style="color:var(--muted);font-size:11px;background:rgba(255,255,255,0.04);padding:1px 6px;border-radius:3px;">${esc(s)}</span>`
+      `<span style="color:var(--muted);font-size:11px;background:${subtleBg};padding:1px 6px;border-radius:3px;">${esc(s)}</span>`
     ).join(' ');
 
     return `<div class="live-item" style="padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
@@ -256,13 +259,13 @@ function renderLives() {
         <strong style="color:var(--text);font-size:13px;">${esc(l.content_id)}</strong>
         <span style="display:flex;gap:4px;flex-wrap:wrap;">${storesHtml}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--muted);">${dateStr}</span>
-        <span style="font-size:11px;color:var(--muted);background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:4px;">${minH}:00 – ${maxH}:59</span>
+        <span style="font-size:11px;color:var(--muted);background:${subtleBg};padding:2px 8px;border-radius:4px;">${minH}:00 – ${maxH}:59</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:26px;">
         <span style="font-size:11px;color:var(--green);background:rgba(46,204,113,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.liquidados} liquidados</span>
         <span style="font-size:11px;color:var(--red);background:rgba(231,76,60,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.devolucoes} devoluções</span>
         <span style="font-size:11px;color:#9B59B6;background:rgba(155,89,182,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.cancelamentos} cancelados</span>
-        <span style="font-size:11px;color:var(--text);background:rgba(255,255,255,0.06);padding:3px 8px;border-radius:4px;font-weight:700;">${l.order_count} pedidos</span>
+        <span style="font-size:11px;color:var(--text);background:${subtleBg};padding:3px 8px;border-radius:4px;font-weight:700;">${l.order_count} pedidos</span>
         <span style="font-size:11px;color:var(--orange);font-weight:700;">${fmtGMV}</span>
         <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
           <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Turno:</span>
@@ -449,7 +452,7 @@ function calcularFechamento() {
     responsive: true,
     cutout: '50%',
     plugins: {
-      legend: { position: 'bottom', labels: { color: '#ddd', font: { size: 11 }, padding: 12 } },
+      legend: { position: 'bottom', labels: { color: document.documentElement.getAttribute('data-theme') === 'light' ? '#333' : '#ddd', font: { size: 11 }, padding: 12 } },
       tooltip: { callbacks: { label: tooltipFn } }
     }
   });
