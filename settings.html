@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data: *.supabase.co https:;">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Configurações</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .theme-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; }
+  .theme-opt {
+    background:var(--card); border:2px solid var(--border); border-radius:12px;
+    padding:20px 12px; text-align:center; cursor:pointer; transition:all 0.2s;
+  }
+  .theme-opt:hover { border-color:#555; }
+  .theme-opt.active { border-color:var(--orange); box-shadow:0 0 0 1px var(--orange); }
+  .theme-dot { width:32px; height:32px; border-radius:50%; margin:0 auto 8px; }
+  .theme-name { font-size:12px; font-weight:600; color:var(--text); }
+  .theme-hex { font-size:10px; color:var(--muted); margin-top:2px; }
+  .logo-preview {
+    width:120px; height:120px; border-radius:12px; border:2px dashed var(--border);
+    display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background:var(--card); cursor:pointer; transition:border-color 0.2s;
+  }
+  .logo-preview:hover { border-color:var(--orange); }
+  .logo-preview img { max-width:100%; max-height:100%; object-fit:contain; }
+  .logo-preview .placeholder { color:var(--muted); font-size:11px; text-align:center; }
+  .preview-card {
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    padding:20px; margin-top:20px;
+  }
+  .preview-topbar {
+    background:rgba(8,8,8,0.92); border:1px solid var(--border); border-radius:8px;
+    padding:10px 16px; display:flex; align-items:center; gap:10px;
+  }
+  .preview-topbar img { height:24px; border-radius:4px; }
+  .preview-topbar .brand-text { font-size:16px; font-weight:800; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Configurações</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:800px;">
+
+<!-- Agency Name -->
+<div class="admin-section">
+  <h2>Nome da Agencia</h2>
+  <div style="display:flex;gap:10px;align-items:end;">
+    <div class="field" style="flex:1;">
+      <label for="agencyName">Nome exibido no dashboard</label>
+      <input type="text" id="agencyName" placeholder="Nome da agencia">
+    </div>
+    <button class="btn-sm" onclick="saveName()">Salvar</button>
+  </div>
+  <div class="msg" id="nameMsg" style="margin-top:8px;"></div>
+</div>
+
+<!-- Theme -->
+<div class="admin-section">
+  <h2>Tema</h2>
+  <p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Selecione o tema de cores do seu dashboard.</p>
+  <div class="theme-grid" id="themeGrid"></div>
+  <div class="msg" id="themeMsg"></div>
+</div>
+
+<!-- Logo -->
+<div class="admin-section">
+  <h2>Logo</h2>
+  <p style="font-size:11px;color:var(--muted);margin-bottom:12px;">PNG ou JPG, max 200KB. Aparece no login e no cabecalho.</p>
+  <div style="display:flex;gap:20px;align-items:start;">
+    <div>
+      <div class="logo-preview" id="logoPreview" onclick="document.getElementById('logoInput').click()">
+        <div class="placeholder" id="logoPlaceholder">Clique para<br>enviar logo</div>
+      </div>
+      <input type="file" id="logoInput" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleLogoUpload(this)">
+    </div>
+    <div style="flex:1;">
+      <button class="btn-sm" onclick="document.getElementById('logoInput').click()">Enviar logo</button>
+      <button class="btn-sm" onclick="removeLogo()" style="background:transparent;border:1px solid var(--red);color:var(--red);margin-left:8px;">Remover</button>
+      <div class="msg" id="logoMsg" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview -->
+<div class="admin-section">
+  <h2>Preview</h2>
+  <div class="preview-card">
+    <div class="preview-topbar" id="previewTopbar">
+      <span class="brand-text" id="previewBrand" style="color:var(--orange);">SPACEHUB</span>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <div class="kpi" style="flex:1;"><div class="kpi-v" style="color:var(--orange);">R$ 12.450</div><div class="kpi-l">GMV Total</div></div>
+      <div class="kpi" style="flex:1;"><div class="kpi-v">347</div><div class="kpi-l">Pedidos</div></div>
+      <div class="kpi" style="flex:1;"><div class="kpi-v" style="color:var(--green);">82%</div><div class="kpi-l">Liquidados</div></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/settings.js"></script>
+<script>
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+  const role = await getUserRole();
+  if (role?.role !== 'admin') {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  await renderNav('settings');
+  await initSettings();
+})();
+</script>
+</body>
+</html>

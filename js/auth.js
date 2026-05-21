@@ -118,6 +118,7 @@ async function renderNav(activePage) {
   if (isAdmin) {
     links += `<a href="fechamento.html" class="${activePage === 'fechamento' ? 'active' : ''}">Fechamento</a>`;
     links += `<a href="admin.html" class="${activePage === 'admin' ? 'active' : ''}">Admin</a>`;
+    links += `<a href="settings.html" class="${activePage === 'settings' ? 'active' : ''}">Config</a>`;
   }
   if (userInfo?.is_superadmin) {
     links += `<a href="superadmin.html" class="${activePage === 'superadmin' ? 'active' : ''}" style="color:var(--orange);">Super</a>`;
