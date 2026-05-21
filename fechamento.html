@@ -44,23 +44,23 @@
   <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr auto;gap:10px;align-items:end;">
     <div class="field">
       <label for="fechAccount">Conta</label>
-      <select id="fechAccount" onchange="onFechAccountChange()" style="width:100%;">
+      <select id="fechAccount" onchange="onFechAccountChange()">
         <option value="">Selecione</option>
       </select>
     </div>
     <div class="field">
       <label for="fechSeller">Vendedor</label>
-      <select id="fechSeller" style="width:100%;">
+      <select id="fechSeller">
         <option value="">Selecione</option>
       </select>
     </div>
     <div class="field">
       <label for="fechStart">Data inicial</label>
-      <input type="date" id="fechStart" style="width:100%;">
+      <input type="date" id="fechStart">
     </div>
     <div class="field">
       <label for="fechEnd">Data final</label>
-      <input type="date" id="fechEnd" style="width:100%;">
+      <input type="date" id="fechEnd">
     </div>
     <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
   </div>

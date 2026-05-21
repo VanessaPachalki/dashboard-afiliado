@@ -235,9 +235,17 @@ tr:hover td { background:var(--card-hover); }
 }
 .field select, .field input {
   padding:8px 12px; border-radius:6px; border:1px solid var(--border);
-  background:var(--bg); color:var(--text); font-size:12px;
+  background:var(--bg) !important; color:var(--text) !important; font-size:12px;
   color-scheme:dark; outline:none; width:100%; box-sizing:border-box;
+  -webkit-appearance:none; appearance:none;
 }
+.field select {
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23777' d='M6 8L1 3h10z'/%3E%3C/svg%3E") !important;
+  background-repeat:no-repeat !important;
+  background-position:right 10px center !important;
+  padding-right:28px;
+}
+.field select option { background:var(--card); color:var(--text); }
 .field select:focus, .field input:focus { border-color:var(--orange); }
 .btn-sm {
   padding:8px 16px; border-radius:6px; border:none;
