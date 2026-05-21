@@ -28,7 +28,7 @@ async function initFechamento() {
   ).join('');
 
   sellerAccSel.innerHTML = '<option value="">Selecione a conta</option>' + opts;
-  fechAccSel.innerHTML = '<option value="">Conta</option>' + opts;
+  fechAccSel.innerHTML = '<option value="">Selecione</option>' + opts;
 
   await loadSellers();
 }
@@ -114,7 +114,7 @@ function onFechAccountChange() {
   const sellerSel = document.getElementById('fechSeller');
 
   const sellers = allSellers.filter(s => s.account_id === accountId);
-  sellerSel.innerHTML = '<option value="">Vendedor</option>' +
+  sellerSel.innerHTML = '<option value="">Selecione</option>' +
     sellers.map(s => `<option value="${escAttr(s.id)}">${esc(s.name)} (${s.commission_pct}%)</option>`).join('');
 
   // Hide results when account changes
@@ -355,103 +355,73 @@ function calcularFechamento() {
     if (existing) existing.destroy();
   });
 
-  // Group liquidados by store for chart
-  const liqByStore = {};
-  liquidados.forEach(o => {
-    const s = o.store_name;
-    if (!liqByStore[s]) liqByStore[s] = { gmv: 0, count: 0, comissao: 0 };
-    liqByStore[s].gmv += parseFloat(o.gmv);
-    liqByStore[s].count++;
-    liqByStore[s].comissao += parseFloat(o.received_commission);
-  });
-  const liqStores = Object.entries(liqByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+  // Group by store for each category
+  function groupByStore(arr) {
+    const map = {};
+    arr.forEach(o => {
+      const s = o.store_name;
+      if (!map[s]) map[s] = { gmv: 0, count: 0 };
+      map[s].gmv += parseFloat(o.gmv);
+      map[s].count++;
+    });
+    return Object.entries(map).sort((a, b) => b[1].gmv - a[1].gmv);
+  }
 
-  // Group cancelamentos by store
-  const cancelByStore = {};
-  cancelamentos.forEach(o => {
-    const s = o.store_name;
-    if (!cancelByStore[s]) cancelByStore[s] = { gmv: 0, count: 0 };
-    cancelByStore[s].gmv += parseFloat(o.gmv);
-    cancelByStore[s].count++;
-  });
-  const cancelStores = Object.entries(cancelByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+  const liqStores = groupByStore(liquidados);
+  const cancelStores = groupByStore(cancelamentos);
+  const devolStores = groupByStore(devolucoes);
 
-  // Group devoluções by store
-  const devolByStore = {};
-  devolucoes.forEach(o => {
-    const s = o.store_name;
-    if (!devolByStore[s]) devolByStore[s] = { gmv: 0, count: 0, refunded: 0 };
-    devolByStore[s].gmv += parseFloat(o.gmv);
-    devolByStore[s].count++;
-    devolByStore[s].refunded += o.items_refunded;
-  });
-  const devolStores = Object.entries(devolByStore).sort((a, b) => b[1].gmv - a[1].gmv);
+  const pieColors = ['#E8551B', '#3CB371', '#4EC9B0', '#D4A76A', '#9B59B6', '#3498DB', '#E67E22', '#1ABC9C', '#E74C3C', '#95A5A6'];
 
-  const barOpts = (color, tooltipFn) => ({
-    indexAxis: 'y',
+  const pieOpts = (tooltipFn) => ({
     responsive: true,
+    cutout: '50%',
     plugins: {
-      legend: { display: false },
+      legend: { position: 'bottom', labels: { color: '#ddd', font: { size: 11 }, padding: 12 } },
       tooltip: { callbacks: { label: tooltipFn } }
-    },
-    scales: {
-      x: { ticks: { color: '#777', font: { size: 10 } }, grid: { color: '#1a1a1a' } },
-      y: { ticks: { color: '#ddd', font: { size: 11 } }, grid: { display: false } }
     }
   });
 
   // Chart: Liquidados
   new Chart(document.getElementById('chartLiquidados'), {
-    type: 'bar',
+    type: 'doughnut',
     data: {
-      labels: liqStores.length ? liqStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      labels: liqStores.length ? liqStores.map(([s]) => s) : ['Nenhum'],
       datasets: [{
         data: liqStores.length ? liqStores.map(([, v]) => v.gmv) : [0],
-        backgroundColor: chartColors.liq,
-        borderRadius: 4,
-        maxBarThickness: 28
+        backgroundColor: pieColors.slice(0, liqStores.length || 1),
+        borderWidth: 0
       }]
     },
-    options: barOpts(chartColors.liq, ctx => {
-      const store = liqStores[ctx.dataIndex];
-      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].count} ped.)` : '';
-    })
+    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${liqStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
 
   // Chart: Cancelamentos
   new Chart(document.getElementById('chartCancelamentos'), {
-    type: 'bar',
+    type: 'doughnut',
     data: {
-      labels: cancelStores.length ? cancelStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      labels: cancelStores.length ? cancelStores.map(([s]) => s) : ['Nenhum'],
       datasets: [{
         data: cancelStores.length ? cancelStores.map(([, v]) => v.gmv) : [0],
-        backgroundColor: chartColors.cancel,
-        borderRadius: 4,
-        maxBarThickness: 28
+        backgroundColor: pieColors.slice(0, cancelStores.length || 1),
+        borderWidth: 0
       }]
     },
-    options: barOpts(chartColors.cancel, ctx => {
-      const store = cancelStores[ctx.dataIndex];
-      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].count} ped.)` : '';
-    })
+    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${cancelStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
 
   // Chart: Devoluções
   new Chart(document.getElementById('chartDevolucoes'), {
-    type: 'bar',
+    type: 'doughnut',
     data: {
-      labels: devolStores.length ? devolStores.map(([s]) => s.length > 20 ? s.slice(0, 20) + '…' : s) : ['Nenhum'],
+      labels: devolStores.length ? devolStores.map(([s]) => s) : ['Nenhum'],
       datasets: [{
         data: devolStores.length ? devolStores.map(([, v]) => v.gmv) : [0],
-        backgroundColor: chartColors.devol,
-        borderRadius: 4,
-        maxBarThickness: 28
+        backgroundColor: pieColors.slice(0, devolStores.length || 1),
+        borderWidth: 0
       }]
     },
-    options: barOpts(chartColors.devol, ctx => {
-      const store = devolStores[ctx.dataIndex];
-      return store ? ` ${fmtBRL(store[1].gmv)} (${store[1].refunded} devolvidos)` : '';
-    })
+    options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${devolStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
 
   // Detailed summary table
