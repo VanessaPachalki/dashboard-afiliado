@@ -62,7 +62,10 @@
       <label for="fechEnd" style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Data final</label>
       <input type="date" id="fechEnd" style="width:150px;color-scheme:dark;">
     </div>
-    <button class="btn-sm" style="white-space:nowrap;" onclick="loadLives()">Buscar Lives</button>
+    <div style="display:flex;flex-direction:column;gap:2px;justify-content:flex-end;">
+      <label style="font-size:10px;color:transparent;">&nbsp;</label>
+      <button class="btn-sm" style="white-space:nowrap;padding:8px 14px;font-size:11px;" onclick="loadLives()">Buscar Lives</button>
+    </div>
   </div>
   <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
 </div>
