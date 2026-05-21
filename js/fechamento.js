@@ -71,36 +71,59 @@ function renderSellers() {
 async function addSeller() {
   const accountId = document.getElementById('sellerAccount').value;
   const name = document.getElementById('sellerName').value.trim();
-  const pct = parseFloat(document.getElementById('sellerPct').value);
+  const pctRaw = document.getElementById('sellerPct').value.trim().replace(',', '.');
+  const pct = parseFloat(pctRaw);
   const msg = document.getElementById('sellerMsg');
 
   if (!accountId) { msg.className = 'msg msg-err'; msg.textContent = 'Selecione uma conta.'; return; }
   if (!name) { msg.className = 'msg msg-err'; msg.textContent = 'Digite o nome do vendedor.'; return; }
   if (isNaN(pct) || pct < 0 || pct > 100) { msg.className = 'msg msg-err'; msg.textContent = 'Comissão deve ser entre 0 e 100%.'; return; }
 
-  const { error } = await sb.from('sellers').insert({
-    account_id: accountId,
-    name,
-    commission_pct: pct
-  });
-
-  if (error) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Erro: ' + error.message;
-    return;
-  }
-
+  // Optimistic: add to local list immediately
+  const tempId = 'temp-' + Date.now();
+  const account = allAccountsList.find(a => a.id === accountId);
+  const optimistic = {
+    id: tempId, account_id: accountId, name, commission_pct: pct,
+    created_at: new Date().toISOString(),
+    accounts: account ? { name: account.name } : null
+  };
+  allSellers.unshift(optimistic);
+  renderSellers();
   msg.className = 'msg msg-ok';
   msg.textContent = `Vendedor "${name}" adicionado.`;
   document.getElementById('sellerName').value = '';
   document.getElementById('sellerPct').value = '';
-  await loadSellers();
+
+  const { data, error } = await sb.from('sellers').insert({
+    account_id: accountId, name, commission_pct: pct
+  }).select('*, accounts(name)').single();
+
+  if (error) {
+    // Rollback
+    allSellers = allSellers.filter(s => s.id !== tempId);
+    renderSellers();
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Erro: ' + error.message;
+  } else if (data) {
+    // Replace temp with real record
+    const idx = allSellers.findIndex(s => s.id === tempId);
+    if (idx !== -1) allSellers[idx] = data;
+  }
 }
 
 async function removeSeller(id, name) {
   if (!confirm(`Remover vendedor "${name}"?`)) return;
-  await sb.from('sellers').delete().eq('id', id);
-  await loadSellers();
+
+  // Optimistic
+  const removed = allSellers.find(s => s.id === id);
+  allSellers = allSellers.filter(s => s.id !== id);
+  renderSellers();
+
+  const { error } = await sb.from('sellers').delete().eq('id', id);
+  if (error) {
+    if (removed) allSellers.unshift(removed);
+    renderSellers();
+  }
 }
 
 function onSellerAccountChange() {
@@ -217,8 +240,8 @@ function renderLives() {
       return `${day}/${m}`;
     }).join(', ');
     const hours = [...l.hours].sort((a, b) => a - b);
-    const minH = hours[0];
-    const maxH = hours[hours.length - 1];
+    const minH = String(hours[0]).padStart(2, '0');
+    const maxH = String(hours[hours.length - 1]).padStart(2, '0');
 
     return `<div class="live-item" style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
       <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;cursor:pointer;">
@@ -228,14 +251,14 @@ function renderLives() {
         <span style="color:var(--muted);font-size:11px;margin-left:8px;">${esc(l.store_name)}</span>
       </span>
       <span style="font-size:11px;color:var(--muted);">${dateStr}</span>
-      <span style="font-size:11px;color:var(--muted);">${minH}h-${maxH}h</span>
+      <span style="font-size:11px;color:var(--muted);">${minH}:00–${maxH}:59</span>
       <span style="font-size:11px;color:var(--green);font-weight:700;">${l.liquidados} liq</span>
       <span style="font-size:11px;color:var(--red);font-weight:700;">${l.devolucoes} dev</span>
       <span style="font-size:11px;color:#9B59B6;font-weight:700;">${l.cancelamentos} canc</span>
       <span style="font-size:12px;font-weight:600;color:var(--text);">${l.order_count} ped</span>
-      <input type="number" class="live-hora-ini" data-idx="${i}" placeholder="De" min="0" max="23" value="" style="width:50px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
+      <input type="time" class="live-hora-ini" data-idx="${i}" value="" style="width:80px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
       <span style="color:var(--muted);font-size:11px;">às</span>
-      <input type="number" class="live-hora-fim" data-idx="${i}" placeholder="Até" min="0" max="23" value="" style="width:50px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
+      <input type="time" class="live-hora-fim" data-idx="${i}" value="" style="width:80px;padding:4px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
     </div>`;
   }).join('');
 }
@@ -265,22 +288,32 @@ function calcularFechamento() {
   }
 
   // Get content_ids + hour filters of selected lives
+  // Parse time string "HH:MM" to total minutes for precise comparison
+  function timeToMinutes(timeStr) {
+    if (!timeStr) return null;
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  }
+
   const selectedLives = selectedIdxs.map(i => {
     const horaIni = document.querySelector(`.live-hora-ini[data-idx="${i}"]`)?.value;
     const horaFim = document.querySelector(`.live-hora-fim[data-idx="${i}"]`)?.value;
     return {
       content_id: foundLives[i].content_id,
-      horaIni: horaIni !== '' ? parseInt(horaIni) : null,
-      horaFim: horaFim !== '' ? parseInt(horaFim) : null
+      minIni: timeToMinutes(horaIni),
+      minFim: timeToMinutes(horaFim)
     };
   });
 
-  // Filter orders by content_id + optional hour range
+  // Filter orders by content_id + optional time range
+  // Orders only have integer hour, so we compare: order occupies [hour*60, hour*60+59]
   const orders = fetchedOrders.filter(o => {
     const live = selectedLives.find(l => l.content_id === o.content_id);
     if (!live) return false;
-    if (live.horaIni !== null && o.hour < live.horaIni) return false;
-    if (live.horaFim !== null && o.hour > live.horaFim) return false;
+    const orderStart = o.hour * 60;     // e.g. hour 14 → 840
+    const orderEnd = o.hour * 60 + 59;  // e.g. hour 14 → 899
+    if (live.minIni !== null && orderEnd < live.minIni) return false;
+    if (live.minFim !== null && orderStart > live.minFim) return false;
     return true;
   });
 

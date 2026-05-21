@@ -87,27 +87,61 @@ async function addEmail() {
     return;
   }
 
+  // Optimistic: add to local list + render immediately
+  const optimistic = { email, role, display_name: name || null, created_at: new Date().toISOString() };
+  allEmails.unshift(optimistic);
+  emailsPage = 1;
+  renderEmails();
+  msg.className = 'msg msg-ok';
+  msg.textContent = `${email} adicionado com sucesso.`;
+  document.getElementById('newEmail').value = '';
+  document.getElementById('newName').value = '';
+
+  // Cascade: refresh accounts email dropdown
+  refreshAccountEmailDropdown();
+
+  // Sync with DB in background
   const { error } = await sb.from('approved_emails').insert({
     email, role, display_name: name || null
   });
 
   if (error) {
+    // Rollback: remove optimistic entry and show error
+    allEmails = allEmails.filter(e => e !== optimistic);
+    renderEmails();
     msg.className = 'msg msg-err';
     msg.textContent = error.code === '23505' ? 'Este e-mail ja esta cadastrado.' : error.message;
-    return;
   }
-
-  msg.className = 'msg msg-ok';
-  msg.textContent = `${email} adicionado com sucesso.`;
-  document.getElementById('newEmail').value = '';
-  document.getElementById('newName').value = '';
-  await loadEmails();
 }
 
 async function removeEmail(email) {
   if (!confirm(`Tem certeza que deseja remover ${email}?`)) return;
-  await sb.from('approved_emails').delete().eq('email', email);
-  await loadEmails();
+
+  // Optimistic: remove from local list immediately
+  const removed = allEmails.find(e => e.email === email);
+  allEmails = allEmails.filter(e => e.email !== email);
+  renderEmails();
+  refreshAccountEmailDropdown();
+
+  const { error } = await sb.from('approved_emails').delete().eq('email', email);
+  if (error) {
+    // Rollback
+    if (removed) allEmails.unshift(removed);
+    renderEmails();
+    refreshAccountEmailDropdown();
+  }
+}
+
+// ===== HELPER: cascade refresh =====
+
+function refreshAccountEmailDropdown() {
+  const select = document.getElementById('newAccountEmail');
+  if (!select) return;
+  select.innerHTML = '<option value="">Selecione o e-mail</option>';
+  allEmails.forEach(e => {
+    const label = e.display_name ? `${esc(e.display_name)} (${esc(e.email)})` : esc(e.email);
+    select.innerHTML += `<option value="${escAttr(e.email)}">${label}</option>`;
+  });
 }
 
 // ===== ACCOUNTS =====
@@ -183,25 +217,45 @@ async function addAccount() {
     return;
   }
 
-  const { error } = await sb.from('accounts').insert({ email, name });
-
-  if (error) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Erro: ' + error.message;
-    return;
-  }
-
+  // Optimistic: add to local list immediately with temp id
+  const tempId = 'temp-' + Date.now();
+  const optimistic = { id: tempId, email, name, created_at: new Date().toISOString() };
+  allAccounts.unshift(optimistic);
+  accountsPage = 1;
+  renderAccounts();
   msg.className = 'msg msg-ok';
   msg.textContent = `Conta "${name}" criada com sucesso.`;
   document.getElementById('newAccountName').value = '';
   document.getElementById('newAccountEmail').value = '';
-  await loadAccounts();
+
+  const { data, error } = await sb.from('accounts').insert({ email, name }).select().single();
+
+  if (error) {
+    // Rollback
+    allAccounts = allAccounts.filter(a => a.id !== tempId);
+    renderAccounts();
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Erro: ' + error.message;
+  } else if (data) {
+    // Replace temp with real record
+    const idx = allAccounts.findIndex(a => a.id === tempId);
+    if (idx !== -1) allAccounts[idx] = data;
+  }
 }
 
 async function removeAccount(id, name) {
   if (!confirm(`Tem certeza que deseja remover a conta "${name}" e todos os dados vinculados?`)) return;
-  await sb.from('accounts').delete().eq('id', id);
-  await loadAccounts();
+
+  // Optimistic
+  const removed = allAccounts.find(a => a.id === id);
+  allAccounts = allAccounts.filter(a => a.id !== id);
+  renderAccounts();
+
+  const { error } = await sb.from('accounts').delete().eq('id', id);
+  if (error) {
+    if (removed) allAccounts.unshift(removed);
+    renderAccounts();
+  }
 }
 
 // ===== LOGIN ATTEMPTS =====
@@ -268,8 +322,17 @@ function renderAttempts() {
 
 async function removeAttempt(email) {
   if (!confirm(`Remover tentativas de ${email}?`)) return;
-  await sb.from('login_attempts').delete().eq('email', email);
-  await loadLoginAttempts();
+
+  // Optimistic
+  const removed = allAttempts.find(([e]) => e === email);
+  allAttempts = allAttempts.filter(([e]) => e !== email);
+  renderAttempts();
+
+  const { error } = await sb.from('login_attempts').delete().eq('email', email);
+  if (error) {
+    if (removed) allAttempts.unshift(removed);
+    renderAttempts();
+  }
 }
 
 // ===== ALL UPLOADS =====
@@ -343,6 +406,15 @@ function renderUploads(uploads) {
 
 async function deleteUploadAdmin(id, filename) {
   if (!confirm(`Tem certeza que deseja excluir "${filename}" e todos os pedidos?`)) return;
-  await sb.from('uploads').delete().eq('id', id);
-  await loadAllUploads();
+
+  // Optimistic
+  const removed = allUploads.find(u => u.id === id);
+  allUploads = allUploads.filter(u => u.id !== id);
+  filterUploads();
+
+  const { error } = await sb.from('uploads').delete().eq('id', id);
+  if (error) {
+    if (removed) allUploads.unshift(removed);
+    filterUploads();
+  }
 }
