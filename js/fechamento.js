@@ -210,21 +210,15 @@ function renderLives() {
       const [y, m, day] = d.split('-');
       return `${day}/${m}`;
     }).join(', ');
-    const hours = [...l.hours].sort((a, b) => a - b);
-    const hourStr = hours.length <= 3
-      ? hours.map(h => `${h}h`).join(', ')
-      : `${hours[0]}h - ${hours[hours.length - 1]}h`;
-    const typeLabel = CONTENT_LABELS[l.content_type] || '?';
-    const tagClass = CONTENT_TAG_CLASS[l.content_type] || 'tag-l';
 
     return `<label class="live-item" style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
       <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;">
-      <span class="tag ${tagClass}">${typeLabel}</span>
+      <span class="tag tag-l">Live</span>
       <span style="flex:1;">
         <strong style="color:var(--text);font-size:12px;">${esc(l.content_id)}</strong>
         <span style="color:var(--muted);font-size:11px;margin-left:8px;">${esc(l.store_name)}</span>
       </span>
-      <span style="font-size:11px;color:var(--muted);">${dateStr} &middot; ${hourStr}</span>
+      <span style="font-size:11px;color:var(--muted);">${dateStr}</span>
       <span style="font-size:12px;font-weight:600;color:var(--text);">${l.order_count} pedidos</span>
       <span style="font-size:12px;font-weight:700;color:var(--orange);">R$ ${l.gmv.toFixed(2).replace('.', ',')}</span>
     </label>`;
