@@ -42,15 +42,15 @@
 <div class="admin-section">
   <h2>Calcular Fechamento</h2>
   <div class="add-row" style="flex-wrap:wrap;">
-    <select id="fechAccount" onchange="onFechAccountChange()">
+    <select id="fechAccount" onchange="onFechAccountChange()" style="flex:1;min-width:150px;">
       <option value="">Conta</option>
     </select>
-    <select id="fechSeller">
+    <select id="fechSeller" style="flex:1;min-width:150px;">
       <option value="">Vendedor</option>
     </select>
-    <input type="date" id="fechStart" style="max-width:160px;">
-    <input type="date" id="fechEnd" style="max-width:160px;">
-    <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
+    <input type="date" id="fechStart" style="flex:0 0 auto;width:150px;color-scheme:dark;">
+    <input type="date" id="fechEnd" style="flex:0 0 auto;width:150px;color-scheme:dark;">
+    <button class="btn-sm" style="white-space:nowrap;" onclick="loadLives()">Buscar Lives</button>
   </div>
   <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
 </div>
