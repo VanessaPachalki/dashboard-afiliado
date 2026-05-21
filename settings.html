@@ -84,6 +84,10 @@
     <div style="flex:1;">
       <button class="btn-sm" onclick="document.getElementById('logoInput').click()">Enviar logo</button>
       <button class="btn-sm" onclick="removeLogo()" style="background:transparent;border:1px solid var(--red);color:var(--red);margin-left:8px;">Remover</button>
+      <div style="margin-top:14px;">
+        <label style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Tamanho: <strong id="logoSizeLabel">32px</strong></label>
+        <input type="range" id="logoSize" min="20" max="80" value="32" step="2" oninput="previewLogoSize(this.value)" onchange="saveLogoSize(this.value)" style="width:100%;accent-color:var(--orange);margin-top:4px;">
+      </div>
       <div class="msg" id="logoMsg" style="margin-top:8px;"></div>
     </div>
   </div>

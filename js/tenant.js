@@ -71,7 +71,7 @@ async function resolveTenant() {
 
   // Fetch from Supabase (direct query — fast, no edge function needed)
   // sb may not be available yet, so we use fetch directly
-  const url = SUPABASE_URL + '/rest/v1/agencies?slug=eq.' + encodeURIComponent(slug) + '&is_active=eq.true&select=id,slug,name,primary_color,logo_url,plan&limit=1';
+  const url = SUPABASE_URL + '/rest/v1/agencies?slug=eq.' + encodeURIComponent(slug) + '&is_active=eq.true&select=id,slug,name,primary_color,logo_url,logo_height,plan&limit=1';
   try {
     const resp = await fetch(url, {
       headers: {
@@ -137,7 +137,8 @@ function applyBranding(agency) {
       const img = document.createElement('img');
       img.src = agency.logo_url;
       img.alt = agency.name;
-      img.style.cssText = 'height:32px;vertical-align:middle;border-radius:4px;';
+      const logoH = agency.logo_height || 32;
+      img.style.cssText = 'height:'+logoH+'px;vertical-align:middle;border-radius:4px;';
       img.onerror = function() {
         this.style.display = 'none';
         this.parentElement.appendChild(document.createTextNode(agency.name + ' '));

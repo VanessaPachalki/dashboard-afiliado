@@ -35,8 +35,10 @@ async function initSettings() {
   // Render themes
   renderThemes();
 
-  // Load logo preview
+  // Load logo preview + size
   updateLogoPreview();
+  document.getElementById('logoSize').value = currentAgency.logo_height || 32;
+  document.getElementById('logoSizeLabel').textContent = (currentAgency.logo_height || 32) + 'px';
 
   // Update preview
   updatePreview();
@@ -230,7 +232,8 @@ function updatePreview() {
   if (currentAgency?.logo_url) {
     const img = document.createElement('img');
     img.src = currentAgency.logo_url;
-    img.style.cssText = 'height:24px;border-radius:4px;';
+    const previewH = currentAgency.logo_height || 32;
+    img.style.cssText = 'height:'+previewH+'px;border-radius:4px;';
     img.onerror = function() { this.style.display = 'none'; };
     topbar.appendChild(img);
   }
@@ -261,4 +264,29 @@ function updateModeButtons() {
     btn.style.color = isActive ? '#fff' : 'var(--muted)';
     btn.style.border = isActive ? 'none' : '1px solid var(--border)';
   });
+}
+
+// ===== LOGO SIZE =====
+
+function previewLogoSize(val) {
+  document.getElementById('logoSizeLabel').textContent = val + 'px';
+  // Update topbar logo live
+  document.querySelectorAll('.brand img').forEach(img => { img.style.height = val + 'px'; });
+  // Update preview
+  const previewImg = document.querySelector('#previewTopbar img');
+  if (previewImg) previewImg.style.height = val + 'px';
+}
+
+async function saveLogoSize(val) {
+  const size = parseInt(val);
+  currentAgency.logo_height = size;
+  window.AGENCY.logo_height = size;
+
+  const cacheKey = 'spacehub_tenant_' + window.__TENANT_SLUG;
+  sessionStorage.removeItem(cacheKey);
+
+  await sb
+    .from('agencies')
+    .update({ logo_height: size, updated_at: new Date().toISOString() })
+    .eq('id', currentAgency.id);
 }
