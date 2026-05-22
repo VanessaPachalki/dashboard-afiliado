@@ -1,0 +1,18 @@
+=== HASH SHA-512 DO CODIGO-FONTE ===
+Programa: SPACEHUB AI — Plataforma SaaS de Performance para Afiliados
+Titular: Vanessa Pachalki
+Data de geracao: 22/05/2026
+
+Arquivos incluidos (codigo-fonte proprio):
+  js/supabase-config.js, js/tenant.js, js/auth.js, js/dashboard.js,
+  js/upload.js, js/admin.js, js/fechamento.js, js/settings.js,
+  js/superadmin.js, css/style.css, sql/setup.sql,
+  sql/migration-whitelabel.sql, sql/sellers.sql, build.js
+
+SHA-512:
+829f0500f6a405f78f818edadd713235b5906af6bf39d8400c506391e7b765dcb9e6c699cc7de2f0b247a5833eb0befa99a2e04696e3036319660d24e06472a3
+
+Total de linhas: 3.982
+
+Comando para verificacao:
+cat js/supabase-config.js js/tenant.js js/auth.js js/dashboard.js js/upload.js js/admin.js js/fechamento.js js/settings.js js/superadmin.js css/style.css sql/setup.sql sql/migration-whitelabel.sql sql/sellers.sql build.js | shasum -a 512

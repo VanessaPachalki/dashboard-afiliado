@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src *.supabase.co; img-src 'self' data: *.supabase.co https:;">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB AI — Politica de Privacidade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .legal { max-width:800px; margin:0 auto; padding:40px 24px 80px; }
+  .legal h1 { font-size:22px; font-weight:800; color:var(--orange); margin-bottom:8px; }
+  .legal .updated { font-size:11px; color:var(--muted); margin-bottom:32px; }
+  .legal h2 { font-size:14px; font-weight:700; color:var(--text); margin:28px 0 10px; }
+  .legal p, .legal li { font-size:13px; line-height:1.8; color:var(--muted); margin-bottom:8px; }
+  .legal ul { padding-left:20px; }
+  .legal strong { color:var(--text); }
+  .legal a { color:var(--orange); }
+  .legal table { width:100%; border-collapse:collapse; margin:12px 0; font-size:12px; }
+  .legal th { text-align:left; padding:8px 10px; background:var(--card); color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:0.5px; }
+  .legal td { padding:8px 10px; border-bottom:1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB AI <small>Politica de Privacidade</small></div>
+  <div class="nav-links"><a href="index.html">Voltar ao login</a></div>
+</div>
+
+<div class="legal">
+
+<h1>Politica de Privacidade</h1>
+<p class="updated">Ultima atualizacao: 22 de maio de 2026</p>
+
+<p>A SPACEHUB AI, de titularidade de <strong>Vanessa Pachalki</strong>, se compromete a proteger a privacidade dos usuarios de sua plataforma, em conformidade com a <strong>Lei Geral de Protecao de Dados (LGPD — Lei 13.709/2018)</strong>.</p>
+
+<h2>1. Dados que Coletamos</h2>
+
+<table>
+  <thead><tr><th>Dado</th><th>Fonte</th><th>Finalidade</th></tr></thead>
+  <tbody>
+    <tr><td>Nome e e-mail</td><td>Google OAuth</td><td>Autenticacao e identificacao</td></tr>
+    <tr><td>Foto do perfil Google</td><td>Google OAuth</td><td>Nao armazenada — usada apenas na sessao</td></tr>
+    <tr><td>Dados de pedidos TikTok Shop</td><td>Upload de planilhas XLSX</td><td>Processamento de dashboards e comissoes</td></tr>
+    <tr><td>Logs de acesso</td><td>Automatico</td><td>Seguranca e auditoria</td></tr>
+    <tr><td>Preferencias de tema</td><td>Navegador (localStorage)</td><td>Personalizacao da interface</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Como Usamos os Dados</h2>
+<ul>
+  <li><strong>Autenticacao:</strong> Usamos o e-mail do Google para verificar se o usuario esta autorizado a acessar a plataforma.</li>
+  <li><strong>Processamento de pedidos:</strong> Os dados das planilhas XLSX sao parseados no navegador (client-side) e armazenados no banco de dados para gerar dashboards e calculos de comissao.</li>
+  <li><strong>Isolamento por agencia:</strong> Cada agencia tem seus dados completamente isolados. Nenhuma agencia acessa dados de outra.</li>
+  <li><strong>Auditoria:</strong> Registramos tentativas de login bloqueadas para seguranca.</li>
+</ul>
+
+<h2>3. Base Legal (LGPD)</h2>
+<table>
+  <thead><tr><th>Tratamento</th><th>Base Legal</th></tr></thead>
+  <tbody>
+    <tr><td>Autenticacao e controle de acesso</td><td>Execucao de contrato (Art. 7, V)</td></tr>
+    <tr><td>Processamento de dados de pedidos</td><td>Execucao de contrato (Art. 7, V)</td></tr>
+    <tr><td>Logs de seguranca</td><td>Interesse legitimo (Art. 7, IX)</td></tr>
+    <tr><td>Preferencias visuais</td><td>Consentimento implicito (Art. 7, I)</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Armazenamento e Seguranca</h2>
+<ul>
+  <li><strong>Banco de dados:</strong> Supabase (PostgreSQL hospedado na AWS, regiao us-east-1), com criptografia em repouso e em transito.</li>
+  <li><strong>Row Level Security (RLS):</strong> Politicas de seguranca a nivel de linha em todas as tabelas, garantindo isolamento por agencia e por usuario.</li>
+  <li><strong>Autenticacao:</strong> Google OAuth 2.0 via Supabase Auth — nao armazenamos senhas.</li>
+  <li><strong>Transmissao:</strong> HTTPS/TLS em todas as conexoes.</li>
+  <li><strong>Codigo-fonte:</strong> Ofuscado em producao para protecao de propriedade intelectual.</li>
+</ul>
+
+<h2>5. Compartilhamento de Dados</h2>
+<p><strong>Nao vendemos, alugamos ou compartilhamos seus dados pessoais com terceiros para fins comerciais.</strong></p>
+<p>Seus dados podem ser acessados apenas por:</p>
+<ul>
+  <li>O administrador da sua agencia (dados de performance e pedidos)</li>
+  <li>A administradora da plataforma (Vanessa Pachalki), para suporte tecnico e manutencao</li>
+  <li>Supabase (subprocessador), para armazenamento e processamento — sujeito a sua propria politica de privacidade</li>
+</ul>
+
+<h2>6. Retencao de Dados</h2>
+<ul>
+  <li>Dados de pedidos e uploads sao mantidos enquanto a conta da agencia estiver ativa.</li>
+  <li>Apos a exclusao de uma conta, os dados sao removidos em ate 30 dias.</li>
+  <li>Logs de tentativas de login sao mantidos por 12 meses.</li>
+</ul>
+
+<h2>7. Direitos do Titular (LGPD)</h2>
+<p>Voce tem direito a:</p>
+<ul>
+  <li><strong>Acesso:</strong> Solicitar copia dos seus dados pessoais</li>
+  <li><strong>Correcao:</strong> Solicitar correcao de dados incompletos ou incorretos</li>
+  <li><strong>Exclusao:</strong> Solicitar a eliminacao dos seus dados pessoais</li>
+  <li><strong>Portabilidade:</strong> Solicitar a transferencia dos seus dados para outro servico</li>
+  <li><strong>Revogacao:</strong> Revogar seu consentimento a qualquer momento</li>
+  <li><strong>Informacao:</strong> Saber com quem seus dados foram compartilhados</li>
+</ul>
+<p>Para exercer qualquer desses direitos, envie um e-mail para: <a href="mailto:privacidade@spacehub-ai.com">privacidade@spacehub-ai.com</a></p>
+
+<h2>8. Cookies e Armazenamento Local</h2>
+<ul>
+  <li><strong>Cookies:</strong> A plataforma utiliza cookies de sessao do Supabase Auth para manter a autenticacao. Nao utilizamos cookies de rastreamento ou publicidade.</li>
+  <li><strong>SessionStorage:</strong> Utilizado para cache de dados (TTL de 5 minutos) e configuracoes de tenant. Limpo automaticamente ao fechar o navegador.</li>
+  <li><strong>LocalStorage:</strong> Utilizado apenas para preferencia de tema (dark/light/auto). Nao contem dados pessoais.</li>
+</ul>
+
+<h2>9. Processamento Client-Side</h2>
+<p>As planilhas XLSX enviadas pelo usuario sao processadas <strong>inteiramente no navegador</strong> (client-side) usando a biblioteca XLSX.js. O arquivo original nao e enviado para nenhum servidor — apenas os dados parseados sao armazenados no banco de dados.</p>
+
+<h2>10. Transferencia Internacional</h2>
+<p>Os dados sao armazenados em servidores da AWS (via Supabase) localizados nos Estados Unidos. Esta transferencia e realizada com base no Art. 33, II da LGPD (clausulas-padrao contratuais).</p>
+
+<h2>11. Menores de Idade</h2>
+<p>A plataforma nao e destinada a menores de 18 anos. Nao coletamos intencionalmente dados de menores.</p>
+
+<h2>12. Alteracoes nesta Politica</h2>
+<p>Esta Politica pode ser atualizada periodicamente. Alteracoes significativas serao comunicadas por e-mail ou pela Plataforma. A data da ultima atualizacao esta indicada no topo deste documento.</p>
+
+<h2>13. Encarregado de Dados (DPO)</h2>
+<p><strong>Vanessa Pachalki</strong><br>
+E-mail: <a href="mailto:privacidade@spacehub-ai.com">privacidade@spacehub-ai.com</a></p>
+
+<h2>14. Autoridade Nacional</h2>
+<p>Caso entenda que o tratamento de dados pessoais realizado pela SPACEHUB AI viola a LGPD, voce pode apresentar reclamacao junto a <strong>Autoridade Nacional de Protecao de Dados (ANPD)</strong>: <a href="https://www.gov.br/anpd">www.gov.br/anpd</a></p>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script>resolveTenant();</script>
+</body>
+</html>
