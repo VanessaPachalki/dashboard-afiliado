@@ -228,7 +228,13 @@ function parseRow(row, uploadId, userId, accountId) {
     const parseNum = v => {
       if (v == null || v === '' || v === '/') return 0;
       if (typeof v === 'number') return v;
-      return parseFloat(String(v).replace(',', '.').replace(/[^\d.-]/g, '')) || 0;
+      // Formato BR do TikTok Shop: ponto = milhar, vírgula = decimal.
+      // Ex.: "2.949,99" -> 2949.99. Remove milhar, vírgula vira ponto.
+      const s = String(v).trim()
+        .replace(/\./g, '')       // tira separador de milhar
+        .replace(',', '.')        // decimal BR -> ponto
+        .replace(/[^\d.-]/g, ''); // limpa R$, espaços, etc.
+      return parseFloat(s) || 0;
     };
 
     return {
