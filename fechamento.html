@@ -68,18 +68,24 @@
   <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
 </div>
 
-<!-- Lives encontradas -->
+<!-- Turno do creator -->
 <div class="admin-section" id="livesSection" style="display:none;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-    <div>
-      <h2 style="margin-bottom:4px;">Lives no Período</h2>
-      <p style="font-size:11px;color:var(--muted);margin:0;">Selecione as lives e defina o turno do creator (opcional).</p>
-    </div>
-    <label style="font-size:12px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap;">
-      <input type="checkbox" id="checkAll" onchange="toggleAll()" style="accent-color:var(--orange);width:14px;height:14px;">Selecionar todas
-    </label>
+  <h2 style="margin-bottom:4px;">Turno do Creator</h2>
+  <p style="font-size:11px;color:var(--muted);margin:0 0 14px;">
+    Defina a faixa de horário do turno. O sistema pega todos os pedidos nesse intervalo,
+    de qualquer live. Os limites vêm do horário real das lives que você subiu.
+  </p>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+    <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Turno:</span>
+    <input type="time" id="turnoIni" style="width:100px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;">
+    <span style="color:var(--muted);font-size:12px;">às</span>
+    <input type="time" id="turnoFim" style="width:100px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;">
+    <span id="turnoRange" style="font-size:11px;color:var(--muted);margin-left:6px;"></span>
   </div>
+
+  <p style="font-size:11px;color:var(--muted);margin:18px 0 8px;">Lives no período (referência dos horários disponíveis):</p>
   <div id="livesList"></div>
+
   <div style="margin-top:16px;">
     <button class="btn-sm" onclick="calcularFechamento()">Calcular Fechamento</button>
   </div>

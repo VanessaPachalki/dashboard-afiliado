@@ -9,6 +9,21 @@ let allSellers = [];
 let allAccountsList = [];
 let foundLives = [];    // { content_id, date, hour, order_count, gmv }
 let fetchedOrders = []; // all orders for the selected period+account+lives
+let dataMinTime = null; // menor horário (min do dia) presente no upload
+let dataMaxTime = null; // maior horário (min do dia) presente no upload
+
+// minutos do dia (hora*60+min) -> "HH:MM"
+function fmtMinToHHMM(tot) {
+  if (tot == null || !isFinite(tot)) return '--:--';
+  const h = Math.floor(tot / 60), m = tot % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+// "HH:MM" -> minutos do dia
+function hhmmToMin(str) {
+  if (!str) return null;
+  const [h, m] = str.split(':').map(Number);
+  return h * 60 + m;
+}
 
 // ===== INIT =====
 
@@ -221,6 +236,10 @@ async function loadLives() {
     return dateA.localeCompare(dateB);
   });
 
+  // Range global de horário presente no upload (limita o seletor de turno)
+  dataMinTime = Math.min(...foundLives.map(l => l.minTime));
+  dataMaxTime = Math.max(...foundLives.map(l => l.maxTime));
+
   msg.className = 'msg msg-ok';
   msg.textContent = `${orders.length} pedidos encontrados em ${foundLives.length} conteúdos.`;
 
@@ -235,59 +254,53 @@ function renderLives() {
   const list = document.getElementById('livesList');
   section.style.display = '';
   document.getElementById('resultSection').style.display = 'none';
-  document.getElementById('checkAll').checked = false;
 
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const subtleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
 
-  list.innerHTML = foundLives.map((l, i) => {
+  // Configura o seletor de turno global, travado no range do upload.
+  // Assim só é possível escolher horários que realmente têm live.
+  const minStr = fmtMinToHHMM(dataMinTime);
+  const maxStr = fmtMinToHHMM(dataMaxTime);
+  const turnoIni = document.getElementById('turnoIni');
+  const turnoFim = document.getElementById('turnoFim');
+  turnoIni.min = minStr; turnoIni.max = maxStr; turnoIni.value = minStr;
+  turnoFim.min = minStr; turnoFim.max = maxStr; turnoFim.value = maxStr;
+  document.getElementById('turnoRange').textContent =
+    `disponível no upload: ${minStr} – ${maxStr}`;
+
+  // Cards de referência (somente leitura) — mostram os horários disponíveis.
+  list.innerHTML = foundLives.map((l) => {
     const dates = [...l.dates].sort();
     const dateStr = dates.map(d => {
       const [y, m, day] = d.split('-');
       return `${day}/${m}`;
     }).join(', ');
-    const fmtMin = tot => {
-      if (!isFinite(tot)) return '--:--';
-      const h = Math.floor(tot / 60), m = tot % 60;
-      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-    };
-    const iniStr = fmtMin(l.minTime);
-    const fimStr = fmtMin(l.maxTime);
+    const iniStr = fmtMinToHHMM(l.minTime);
+    const fimStr = fmtMinToHHMM(l.maxTime);
     const fmtGMV = l.gmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const storeNames = [...l.stores].sort();
     const storesHtml = storeNames.map(s =>
       `<span style="color:var(--muted);font-size:11px;background:${subtleBg};padding:1px 6px;border-radius:3px;">${esc(s)}</span>`
     ).join(' ');
 
-    return `<div class="live-item" style="padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+    return `<div class="live-item" style="padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">
       <div style="display:flex;align-items:center;gap:10px;">
-        <input type="checkbox" class="live-check" data-idx="${i}" style="accent-color:var(--orange);width:16px;height:16px;cursor:pointer;">
         <span class="tag tag-l">Live</span>
         <strong style="color:var(--text);font-size:13px;">${esc(l.content_id)}</strong>
         <span style="display:flex;gap:4px;flex-wrap:wrap;">${storesHtml}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--muted);">${dateStr}</span>
-        <span style="font-size:11px;color:var(--muted);background:${subtleBg};padding:2px 8px;border-radius:4px;">${iniStr} – ${fimStr}</span>
+        <span style="font-size:11px;color:var(--orange);background:${subtleBg};padding:2px 8px;border-radius:4px;font-weight:700;">${iniStr} – ${fimStr}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:26px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
         <span style="font-size:11px;color:var(--green);background:rgba(46,204,113,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.liquidados} liquidados</span>
         <span style="font-size:11px;color:var(--red);background:rgba(231,76,60,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.devolucoes} devoluções</span>
         <span style="font-size:11px;color:#9B59B6;background:rgba(155,89,182,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.cancelamentos} cancelados</span>
         <span style="font-size:11px;color:var(--text);background:${subtleBg};padding:3px 8px;border-radius:4px;font-weight:700;">${l.order_count} pedidos</span>
         <span style="font-size:11px;color:var(--orange);font-weight:700;">${fmtGMV}</span>
-        <span style="margin-left:auto;display:flex;align-items:center;gap:6px;">
-          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Turno:</span>
-          <input type="time" class="live-hora-ini" data-idx="${i}" value="" style="width:80px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
-          <span style="color:var(--muted);font-size:11px;">às</span>
-          <input type="time" class="live-hora-fim" data-idx="${i}" value="" style="width:80px;padding:4px 6px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:11px;text-align:center;">
-        </span>
       </div>
     </div>`;
   }).join('');
-}
-
-function toggleAll() {
-  const checked = document.getElementById('checkAll').checked;
-  document.querySelectorAll('.live-check').forEach(cb => { cb.checked = checked; });
 }
 
 // ===== CALCULATE =====
@@ -297,50 +310,42 @@ function calcularFechamento() {
   const seller = allSellers.find(s => s.id === sellerId);
   if (!seller) return;
 
-  const selectedIdxs = [];
-  document.querySelectorAll('.live-check:checked').forEach(cb => {
-    selectedIdxs.push(parseInt(cb.dataset.idx));
-  });
+  const msg = document.getElementById('fechMsg');
 
-  if (!selectedIdxs.length) {
-    const msg = document.getElementById('fechMsg');
+  // Turno do creator: uma faixa de horário única, aplicada a TODAS as lives.
+  // O horário é o primário; a live (content_id) é só pano de fundo.
+  const minIni = hhmmToMin(document.getElementById('turnoIni').value);
+  const minFim = hhmmToMin(document.getElementById('turnoFim').value);
+
+  if (minIni === null || minFim === null) {
     msg.className = 'msg msg-err';
-    msg.textContent = 'Selecione pelo menos uma live/conteúdo.';
+    msg.textContent = 'Defina o horário de início e fim do turno.';
+    return;
+  }
+  if (minIni >= minFim) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'O início do turno deve ser antes do fim.';
     return;
   }
 
-  // Get content_ids + hour filters of selected lives
-  // Parse time string "HH:MM" to total minutes for precise comparison
-  function timeToMinutes(timeStr) {
-    if (!timeStr) return null;
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-  }
-
-  const selectedLives = selectedIdxs.map(i => {
-    const horaIni = document.querySelector(`.live-hora-ini[data-idx="${i}"]`)?.value;
-    const horaFim = document.querySelector(`.live-hora-fim[data-idx="${i}"]`)?.value;
-    return {
-      content_id: foundLives[i].content_id,
-      minIni: timeToMinutes(horaIni),
-      minFim: timeToMinutes(horaFim)
-    };
-  });
-
-  // Filter orders by content_id + optional time range.
+  // Filtra todos os pedidos do turno, independente de qual live.
   // Precisão de minuto: o pedido é um instante (hora*60 + minuto).
   // Como a conta nunca transmite duas lives ao mesmo tempo, quem estava
   // no ar no minuto do pedido é a dona dele. Fronteira da Opção 1:
-  // início INCLUSIVO, fim EXCLUSIVO — assim o pedido da virada (ex. 15:30)
+  // início INCLUSIVO, fim EXCLUSIVO — o pedido da virada (ex. 15:30)
   // cai só na creator que ASSUMIU, nunca é contado para as duas.
   const orders = fetchedOrders.filter(o => {
-    const live = selectedLives.find(l => l.content_id === o.content_id);
-    if (!live) return false;
     const orderMin = o.hour * 60 + (o.minute || 0); // ex. 15:30 → 930
-    if (live.minIni !== null && orderMin < live.minIni) return false;
-    if (live.minFim !== null && orderMin >= live.minFim) return false;
-    return true;
+    return orderMin >= minIni && orderMin < minFim;
   });
+
+  if (!orders.length) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Nenhum pedido nesse turno. Ajuste o horário.';
+    return;
+  }
+  msg.className = 'msg';
+  msg.textContent = '';
 
   // Group by settlement_status
   const byStatus = { 0: [], 1: [], 2: [], 3: [] };
@@ -386,11 +391,12 @@ function calcularFechamento() {
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const totalPeriodo = fetchedOrders.length;
+  const turnoStr = `${fmtMinToHHMM(minIni)} – ${fmtMinToHHMM(minFim)}`;
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;
       ${fmtDate(start)} a ${fmtDate(end)} &mdash;
-      ${selectedIdxs.length} live(s) selecionada(s) &mdash;
+      turno <strong>${turnoStr}</strong> &mdash;
       <strong>${orders.length}</strong> de ${totalPeriodo} pedidos do período
     </div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;">
