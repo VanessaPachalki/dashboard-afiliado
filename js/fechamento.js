@@ -193,7 +193,8 @@ async function loadLives() {
         content_id: key,
         content_type: o.content_type,
         dates: new Set(),
-        hours: new Set(),
+        minTime: Infinity,  // minuto do dia do 1o pedido (hora*60+min)
+        maxTime: -Infinity, // minuto do dia do ultimo pedido
         stores: new Set(),
         order_count: 0,
         gmv: 0,
@@ -204,7 +205,9 @@ async function loadLives() {
     }
     liveMap[key].stores.add(o.store_name);
     liveMap[key].dates.add(o.order_date);
-    liveMap[key].hours.add(o.hour);
+    const t = o.hour * 60 + (o.minute || 0);
+    if (t < liveMap[key].minTime) liveMap[key].minTime = t;
+    if (t > liveMap[key].maxTime) liveMap[key].maxTime = t;
     liveMap[key].order_count++;
     liveMap[key].gmv += parseFloat(o.gmv);
     if (o.settlement_status === 0) liveMap[key].liquidados++;
@@ -243,9 +246,13 @@ function renderLives() {
       const [y, m, day] = d.split('-');
       return `${day}/${m}`;
     }).join(', ');
-    const hours = [...l.hours].sort((a, b) => a - b);
-    const minH = String(hours[0]).padStart(2, '0');
-    const maxH = String(hours[hours.length - 1]).padStart(2, '0');
+    const fmtMin = tot => {
+      if (!isFinite(tot)) return '--:--';
+      const h = Math.floor(tot / 60), m = tot % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+    const iniStr = fmtMin(l.minTime);
+    const fimStr = fmtMin(l.maxTime);
     const fmtGMV = l.gmv.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const storeNames = [...l.stores].sort();
     const storesHtml = storeNames.map(s =>
@@ -259,7 +266,7 @@ function renderLives() {
         <strong style="color:var(--text);font-size:13px;">${esc(l.content_id)}</strong>
         <span style="display:flex;gap:4px;flex-wrap:wrap;">${storesHtml}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--muted);">${dateStr}</span>
-        <span style="font-size:11px;color:var(--muted);background:${subtleBg};padding:2px 8px;border-radius:4px;">${minH}:00 – ${maxH}:59</span>
+        <span style="font-size:11px;color:var(--muted);background:${subtleBg};padding:2px 8px;border-radius:4px;">${iniStr} – ${fimStr}</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-left:26px;">
         <span style="font-size:11px;color:var(--green);background:rgba(46,204,113,0.1);padding:3px 8px;border-radius:4px;font-weight:600;">${l.liquidados} liquidados</span>
@@ -320,15 +327,18 @@ function calcularFechamento() {
     };
   });
 
-  // Filter orders by content_id + optional time range
-  // Orders only have integer hour, so we compare: order occupies [hour*60, hour*60+59]
+  // Filter orders by content_id + optional time range.
+  // Precisão de minuto: o pedido é um instante (hora*60 + minuto).
+  // Como a conta nunca transmite duas lives ao mesmo tempo, quem estava
+  // no ar no minuto do pedido é a dona dele. Fronteira da Opção 1:
+  // início INCLUSIVO, fim EXCLUSIVO — assim o pedido da virada (ex. 15:30)
+  // cai só na creator que ASSUMIU, nunca é contado para as duas.
   const orders = fetchedOrders.filter(o => {
     const live = selectedLives.find(l => l.content_id === o.content_id);
     if (!live) return false;
-    const orderStart = o.hour * 60;     // e.g. hour 14 → 840
-    const orderEnd = o.hour * 60 + 59;  // e.g. hour 14 → 899
-    if (live.minIni !== null && orderEnd < live.minIni) return false;
-    if (live.minFim !== null && orderStart > live.minFim) return false;
+    const orderMin = o.hour * 60 + (o.minute || 0); // ex. 15:30 → 930
+    if (live.minIni !== null && orderMin < live.minIni) return false;
+    if (live.minFim !== null && orderMin >= live.minFim) return false;
     return true;
   });
 

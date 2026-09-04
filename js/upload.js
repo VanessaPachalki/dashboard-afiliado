@@ -216,9 +216,13 @@ function parseRow(row, uploadId, userId, accountId) {
 
     const month = (dt.getMonth() + 1).toString().padStart(2, '0');
     const orderDate = dt.toISOString().split('T')[0];
-    const hour = typeof dateStr === 'string' && dateStr.includes(':')
+    const hasTime = typeof dateStr === 'string' && dateStr.includes(':');
+    const hour = hasTime
       ? parseInt(dateStr.split(' ')[1].split(':')[0])
       : dt.getHours();
+    const minute = hasTime
+      ? parseInt(dateStr.split(' ')[1].split(':')[1])
+      : dt.getMinutes();
     const dayOfWeek = (dt.getDay() + 6) % 7; // Mon=0
 
     const parseNum = v => {
@@ -237,6 +241,7 @@ function parseRow(row, uploadId, userId, accountId) {
       month,
       order_date: orderDate,
       hour,
+      minute,
       day_of_week: dayOfWeek,
       gmv: parseNum(row[COL.gmv]),
       settlement_status: STATUS_MAP[row[COL.status]] ?? 2,
