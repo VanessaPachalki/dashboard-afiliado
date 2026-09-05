@@ -587,6 +587,14 @@ function calcularFechamento() {
 
 function tenantLogo() { return (window.AGENCY && window.AGENCY.logo_url) || null; }
 
+// nome do arquivo com creator + data (período) pra localizar fácil
+function nomeArquivo(d, ext) {
+  const slug = s => String(s || '').trim().replace(/[^\p{L}\p{N}-]+/gu, '_').replace(/^_+|_+$/g, '');
+  const creator = slug(d.creator) || 'creator';
+  const data = slug((d.periodo || '').replace(/\//g, '-'));
+  return `fechamento_${creator}${data ? '_' + data : ''}.${ext}`;
+}
+
 function baixarPdf(d) {
   const creator = d.creator || '—';
   const qty = (d.qty && d.qty > 1) ? d.qty : 1;
@@ -645,7 +653,7 @@ function baixarPdf(d) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
 
-    doc.save(`fechamento_${creator.replace(/[^\w-]+/g, '_')}.pdf`);
+    doc.save(nomeArquivo(d, 'pdf'));
   };
 
   if (logoUrl) {
@@ -728,7 +736,7 @@ function baixarImagem(d) {
     out.toBlob(blob => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `fechamento_${creator.replace(/[^\w-]+/g, '_')}.png`;
+      a.href = url; a.download = nomeArquivo(d, 'png');
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     }, 'image/png');
