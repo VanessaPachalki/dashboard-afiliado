@@ -13,6 +13,7 @@ let dataMinTime = null; // menor horário (min do dia) — usado nos cards de re
 let dataMaxTime = null; // maior horário (min do dia)
 let dataMinDT = null;   // menor data-hora do upload: "YYYY-MM-DDTHH:MM"
 let dataMaxDT = null;   // maior data-hora do upload
+let lastFechamento = null; // snapshot do último cálculo, para exportar em PDF
 
 // minutos do dia (hora*60+min) -> "HH:MM"
 function fmtMinToHHMM(tot) {
@@ -406,6 +407,18 @@ function calcularFechamento() {
 
   const totalPeriodo = fetchedOrders.length;
   const turnoStr = `${fmtDT(tIni)} → ${fmtDT(tFim)}`;
+
+  // Guarda o snapshot pro export em PDF (resumo).
+  const acc = allAccountsList.find(a => a.id === document.getElementById('fechAccount').value);
+  lastFechamento = {
+    accountName: acc ? acc.name : '—',
+    periodo: `${fmtDate(start)} a ${fmtDate(end)}`,
+    turnoStr,
+    comissao: comissaoVendedor,   // valor a pagar (sem exibir a %)
+    liquidados: liquidados.length,
+    inelegiveis: inelegiveis.length
+  };
+
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;
@@ -539,4 +552,66 @@ function calcularFechamento() {
 
   // Scroll to result
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== EXPORTAR PDF (resumo) =====
+
+function exportarPDF() {
+  const msg = document.getElementById('fechMsg');
+  if (!lastFechamento) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Calcule o fechamento antes de exportar.';
+    return;
+  }
+  // Pede o nome do creator na hora de exportar (popup em branco).
+  const nome = prompt('Nome do creator para o relatório:', '');
+  if (nome === null) return;               // cancelou
+  const creator = nome.trim() || '—';
+
+  const f = lastFechamento;
+  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const orange = [232, 85, 27];
+
+  // Cabeçalho
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
+  doc.text('SPACEHUB', 20, 24);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
+  doc.text('Fechamento de Comissão', 20, 31);
+  doc.setDrawColor(220); doc.line(20, 38, 190, 38);
+
+  // Dados
+  let y = 50;
+  const linha = (label, val) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(90);
+    doc.text(label, 20, y);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
+    doc.text(String(val), 62, y);
+    y += 9;
+  };
+  linha('Creator:', creator);
+  linha('Conta:', f.accountName);
+  linha('Período:', f.periodo);
+  linha('Turno:', f.turnoStr);
+
+  // Comissão em destaque (sem exibir a porcentagem)
+  y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
+  doc.text('COMISSÃO', 20, y);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
+  doc.text(fmtBRL(f.comissao), 20, y + 14);
+  y += 28;
+
+  // Contagens
+  doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
+  linha('Pedidos pagos:', f.liquidados);
+  linha('Pedidos inelegíveis:', f.inelegiveis);
+
+  // Rodapé
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
+
+  const safe = creator.replace(/[^\w-]+/g, '_');
+  doc.save(`fechamento_${safe}.pdf`);
 }

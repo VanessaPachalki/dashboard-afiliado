@@ -93,7 +93,10 @@
 
 <!-- Resultado -->
 <div class="admin-section" id="resultSection" style="display:none;">
-  <h2>Resultado do Fechamento</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
+    <h2 style="margin:0;">Resultado do Fechamento</h2>
+    <button class="btn-sm" onclick="exportarPDF()">Exportar PDF</button>
+  </div>
   <div id="resultSummary"></div>
 
   <div class="card" style="margin-top:16px;">
@@ -120,6 +123,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase-config.js"></script>
 <script src="js/tenant.js"></script>
