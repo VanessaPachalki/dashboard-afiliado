@@ -614,3 +614,83 @@ function exportarPDF() {
   const safe = creator.replace(/[^\w-]+/g, '_');
   doc.save(`fechamento_${safe}.pdf`);
 }
+
+// ===== EXPORTAR IMAGEM (PNG, resumo) =====
+
+function exportarImagem() {
+  const msg = document.getElementById('fechMsg');
+  if (!lastFechamento) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Calcule o fechamento antes de exportar.';
+    return;
+  }
+  const nome = prompt('Nome do creator para o relatório:', '');
+  if (nome === null) return;
+  const creator = nome.trim() || '—';
+
+  const f = lastFechamento;
+  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const orange = '#E8551B';
+
+  const W = 1080, H = 1350;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Fundo + barra da marca
+  ctx.fillStyle = '#0f0f10'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = orange; ctx.fillRect(0, 0, W, 14);
+
+  ctx.textAlign = 'left';
+  const divider = yy => {
+    ctx.strokeStyle = '#2a2a2c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(80, yy); ctx.lineTo(W - 80, yy); ctx.stroke();
+  };
+  let y = 150;
+
+  // Cabeçalho
+  ctx.fillStyle = orange; ctx.font = '800 88px Inter, Arial';
+  ctx.fillText('SPACEHUB', 80, y);
+  y += 52;
+  ctx.fillStyle = '#8a8a8a'; ctx.font = '400 34px Inter, Arial';
+  ctx.fillText('Fechamento de Comissão', 82, y);
+  y += 60; divider(y);
+
+  const linha = (label, val) => {
+    y += 72;
+    ctx.fillStyle = '#8a8a8a'; ctx.font = '700 32px Inter, Arial';
+    ctx.fillText(label, 80, y);
+    ctx.fillStyle = '#f0f0f0'; ctx.font = '400 32px Inter, Arial';
+    ctx.fillText(String(val), 360, y);
+  };
+  linha('Creator', creator);
+  linha('Período', f.periodo);
+  linha('Turno', f.turnoStr);
+
+  // Comissão em destaque (sem porcentagem)
+  y += 90; divider(y);
+  y += 66;
+  ctx.fillStyle = '#8a8a8a'; ctx.font = '600 30px Inter, Arial';
+  ctx.fillText('COMISSÃO', 80, y);
+  y += 104;
+  ctx.fillStyle = orange; ctx.font = '800 100px Inter, Arial';
+  ctx.fillText(fmtBRL(f.comissao), 80, y);
+
+  // Contagens
+  y += 56; divider(y);
+  linha('Pedidos pagos', f.liquidados);
+  linha('Pedidos inelegíveis', f.inelegiveis);
+
+  // Rodapé
+  ctx.fillStyle = '#6a6a6a'; ctx.font = '400 24px Inter, Arial';
+  ctx.fillText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 80, H - 60);
+
+  const safe = creator.replace(/[^\w-]+/g, '_');
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `fechamento_${safe}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}

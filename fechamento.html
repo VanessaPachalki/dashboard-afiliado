@@ -95,7 +95,10 @@
 <div class="admin-section" id="resultSection" style="display:none;">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
     <h2 style="margin:0;">Resultado do Fechamento</h2>
-    <button class="btn-sm" onclick="exportarPDF()">Exportar PDF</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm" onclick="exportarImagem()">Exportar Imagem</button>
+      <button class="btn-sm" onclick="exportarPDF()">Exportar PDF</button>
+    </div>
   </div>
   <div id="resultSummary"></div>
 
