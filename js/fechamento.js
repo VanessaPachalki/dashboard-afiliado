@@ -591,7 +591,6 @@ function exportarPDF() {
     y += 9;
   };
   linha('Creator:', creator);
-  linha('Conta:', f.accountName);
   linha('Período:', f.periodo);
   linha('Turno:', f.turnoStr);
 
