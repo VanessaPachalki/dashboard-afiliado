@@ -7,6 +7,12 @@ async function getSession() {
   return session;
 }
 
+// id do usuário logado (dono das linhas — usado nos inserts com owner_id)
+async function myUid() {
+  const s = await getSession();
+  return s?.user?.id || null;
+}
+
 async function requireAuth() {
   const session = await getSession();
   if (!session) {

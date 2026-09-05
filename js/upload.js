@@ -43,32 +43,42 @@ async function loadAccounts() {
   const session = await getSession();
   if (!session) return;
 
-  let accQuery = sb
-    .from('accounts')
-    .select('id, name')
-    .eq('email', session.user.email)
-    .order('name');
-  if (agencyId()) accQuery = accQuery.eq('agency_id', agencyId());
-  const { data: accounts } = await accQuery;
-
+  const account = await getOrCreateMyAccount(session);
   const select = document.getElementById('accountSelect');
   const selector = document.getElementById('accountSelector');
 
-  if (!accounts || accounts.length === 0) {
-    select.innerHTML = '<option value="">Nenhuma conta cadastrada</option>';
+  if (!account) {
+    select.innerHTML = '<option value="">Erro ao preparar sua conta</option>';
     return;
   }
+  // Self-service: cada creator tem 1 conta automática — sem escolher.
+  select.innerHTML = `<option value="${escAttr(account.id)}">${esc(account.name)}</option>`;
+  selector.style.display = 'none';
+}
 
-  if (accounts.length === 1) {
-    // Só uma conta — seleciona automático e esconde dropdown
-    select.innerHTML = `<option value="${accounts[0].id}">${accounts[0].name}</option>`;
-    selector.style.display = 'none';
-  } else {
-    select.innerHTML = '<option value="">Selecione a conta</option>';
-    accounts.forEach(a => {
-      select.innerHTML += `<option value="${a.id}">${a.name}</option>`;
-    });
-  }
+// Retorna a conta do creator (dono = ele), criando na 1ª vez.
+async function getOrCreateMyAccount(session) {
+  const uid = session.user.id;
+
+  const { data: existing } = await sb
+    .from('accounts')
+    .select('id, name, email')
+    .eq('owner_id', uid)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (existing && existing.length) return existing[0];
+
+  const role = await getUserRole();
+  const name = (role && role.display_name) || session.user.email;
+  const { data, error } = await sb.from('accounts').insert({
+    owner_id: uid,
+    email: session.user.email,
+    name,
+    agency_id: agencyId()
+  }).select('id, name, email').single();
+
+  if (error) { console.error('getOrCreateMyAccount:', error); return null; }
+  return data;
 }
 
 // ===== DRAG & DROP =====

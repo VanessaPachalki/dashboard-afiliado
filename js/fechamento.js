@@ -139,7 +139,7 @@ async function addSeller() {
   document.getElementById('sellerPct').value = '';
 
   const { data, error } = await sb.from('sellers').insert({
-    account_id: accountId, name, commission_pct: pct, agency_id: agencyId()
+    account_id: accountId, name, commission_pct: pct, agency_id: agencyId(), owner_id: await myUid()
   }).select('*, accounts(name)').single();
 
   if (error) {
@@ -836,6 +836,7 @@ async function salvarTurno() {
   const f = lastFechamento;
   const { data, error } = await sb.from('turnos').insert({
     agency_id: agencyId(),
+    owner_id: await myUid(),
     account_id: f.accountId,
     seller_id: f.sellerId || null,
     creator_name: creator,
