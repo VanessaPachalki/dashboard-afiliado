@@ -14,6 +14,7 @@ let dataMaxTime = null; // maior horário (min do dia)
 let dataMinDT = null;   // menor data-hora do upload: "YYYY-MM-DDTHH:MM"
 let dataMaxDT = null;   // maior data-hora do upload
 let lastFechamento = null; // snapshot do último cálculo, para exportar em PDF
+let savedTurnos = [];      // turnos salvos da conta selecionada
 
 // minutos do dia (hora*60+min) -> "HH:MM"
 function fmtMinToHHMM(tot) {
@@ -43,6 +44,16 @@ function fmtDT(s) {
   const [date, time] = s.split('T');
   const [, m, d] = date.split('-');
   return `${d}/${m} ${time}`;
+}
+// período (só datas) a partir do intervalo do turno
+function periodoDe(iniDT, fimDT) {
+  const fmt = d => { const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; };
+  const d1 = (iniDT || '').split('T')[0], d2 = (fimDT || '').split('T')[0];
+  return d1 === d2 ? fmt(d1) : `${fmt(d1)} a ${fmt(d2)}`;
+}
+// dois turnos conflitam se os intervalos [ini,fim) se sobrepõem
+function turnosConflitam(a, b) {
+  return a.start_dt < b.end_dt && b.start_dt < a.end_dt;
 }
 
 // ===== INIT =====
@@ -176,6 +187,9 @@ function onFechAccountChange() {
   // Hide results when account changes
   document.getElementById('livesSection').style.display = 'none';
   document.getElementById('resultSection').style.display = 'none';
+
+  // Carrega os turnos salvos dessa conta
+  loadTurnos(accountId);
 }
 
 async function loadLives() {
@@ -419,11 +433,13 @@ function calcularFechamento() {
   const totalPeriodo = fetchedOrders.length;
   const turnoStr = `${fmtDT(tIni)} → ${fmtDT(tFim)}`;
 
-  // Guarda o snapshot pro export em PDF (resumo).
-  const acc = allAccountsList.find(a => a.id === document.getElementById('fechAccount').value);
+  // Guarda o snapshot pro export em PDF/imagem e pro salvar turno.
   lastFechamento = {
-    accountName: acc ? acc.name : '—',
-    periodo: `${fmtDate(start)} a ${fmtDate(end)}`,
+    accountId: document.getElementById('fechAccount').value,
+    sellerId,
+    creatorDefault: seller.name,
+    tIni, tFim,
+    periodo: periodoDe(tIni, tFim),
     turnoStr,
     comissao: comissaoVendedor,   // valor a pagar (sem exibir a %)
     liquidados: liquidados.length,
@@ -565,34 +581,22 @@ function calcularFechamento() {
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ===== EXPORTAR PDF (resumo) =====
+// ===== RELATÓRIO (PDF / imagem) — usado pelo export ad-hoc e pelos turnos salvos =====
+// d = { creator, periodo, turnoStr, comissao, liquidados, inelegiveis }
 
-function exportarPDF() {
-  const msg = document.getElementById('fechMsg');
-  if (!lastFechamento) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Calcule o fechamento antes de exportar.';
-    return;
-  }
-  // Pede o nome do creator na hora de exportar (popup em branco).
-  const nome = prompt('Nome do creator para o relatório:', '');
-  if (nome === null) return;               // cancelou
-  const creator = nome.trim() || '—';
-
-  const f = lastFechamento;
-  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function baixarPdf(d) {
+  const creator = d.creator || '—';
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const orange = hexToRgb(brandHex());
 
-  // Cabeçalho
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
   doc.text(brandName(), 20, 24);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
   doc.text('Fechamento de Comissão', 20, 31);
   doc.setDrawColor(220); doc.line(20, 38, 190, 38);
 
-  // Dados
   let y = 50;
   const linha = (label, val) => {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(90);
@@ -602,45 +606,29 @@ function exportarPDF() {
     y += 9;
   };
   linha('Creator:', creator);
-  linha('Período:', f.periodo);
-  linha('Turno:', f.turnoStr);
+  linha('Período:', d.periodo);
+  linha('Turno:', d.turnoStr);
 
-  // Comissão em destaque (sem exibir a porcentagem)
   y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
   doc.text('COMISSÃO', 20, y);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
-  doc.text(fmtBRL(f.comissao), 20, y + 14);
+  doc.text(fmtBRL(d.comissao), 20, y + 14);
   y += 28;
 
-  // Contagens
   doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
-  linha('Pedidos pagos:', f.liquidados);
-  linha('Pedidos inelegíveis:', f.inelegiveis);
+  linha('Pedidos pagos:', d.liquidados);
+  linha('Pedidos inelegíveis:', d.inelegiveis);
 
-  // Rodapé
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
   doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
 
-  const safe = creator.replace(/[^\w-]+/g, '_');
-  doc.save(`fechamento_${safe}.pdf`);
+  doc.save(`fechamento_${creator.replace(/[^\w-]+/g, '_')}.pdf`);
 }
 
-// ===== EXPORTAR IMAGEM (PNG, resumo) =====
-
-function exportarImagem() {
-  const msg = document.getElementById('fechMsg');
-  if (!lastFechamento) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Calcule o fechamento antes de exportar.';
-    return;
-  }
-  const nome = prompt('Nome do creator para o relatório:', '');
-  if (nome === null) return;
-  const creator = nome.trim() || '—';
-
-  const f = lastFechamento;
-  const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function baixarImagem(d) {
+  const creator = d.creator || '—';
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const orange = brandHex();
 
   const W = 1080, H = 1350;
@@ -648,7 +636,6 @@ function exportarImagem() {
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  // Fundo + barra da marca
   ctx.fillStyle = '#0f0f10'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = orange; ctx.fillRect(0, 0, W, 14);
 
@@ -659,7 +646,6 @@ function exportarImagem() {
   };
   let y = 150;
 
-  // Cabeçalho
   ctx.fillStyle = orange; ctx.font = '800 88px Inter, Arial';
   ctx.fillText(brandName(), 80, y);
   y += 52;
@@ -675,33 +661,179 @@ function exportarImagem() {
     ctx.fillText(String(val), 360, y);
   };
   linha('Creator', creator);
-  linha('Período', f.periodo);
-  linha('Turno', f.turnoStr);
+  linha('Período', d.periodo);
+  linha('Turno', d.turnoStr);
 
-  // Comissão em destaque (sem porcentagem)
   y += 90; divider(y);
   y += 66;
   ctx.fillStyle = '#8a8a8a'; ctx.font = '600 30px Inter, Arial';
   ctx.fillText('COMISSÃO', 80, y);
   y += 104;
   ctx.fillStyle = orange; ctx.font = '800 100px Inter, Arial';
-  ctx.fillText(fmtBRL(f.comissao), 80, y);
+  ctx.fillText(fmtBRL(d.comissao), 80, y);
 
-  // Contagens
   y += 56; divider(y);
-  linha('Pedidos pagos', f.liquidados);
-  linha('Pedidos inelegíveis', f.inelegiveis);
+  linha('Pedidos pagos', d.liquidados);
+  linha('Pedidos inelegíveis', d.inelegiveis);
 
-  // Rodapé
   ctx.fillStyle = '#6a6a6a'; ctx.font = '400 24px Inter, Arial';
   ctx.fillText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 80, H - 60);
 
-  const safe = creator.replace(/[^\w-]+/g, '_');
   canvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `fechamento_${safe}.png`;
+    a.href = url; a.download = `fechamento_${creator.replace(/[^\w-]+/g, '_')}.png`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   }, 'image/png');
+}
+
+// Monta os dados do relatório a partir do último cálculo, pedindo o nome.
+function dadosAdHoc() {
+  const msg = document.getElementById('fechMsg');
+  if (!lastFechamento) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Calcule o fechamento antes de exportar.';
+    return null;
+  }
+  const nome = prompt('Nome do creator para o relatório:', lastFechamento.creatorDefault || '');
+  if (nome === null) return null;
+  const f = lastFechamento;
+  return {
+    creator: nome.trim() || '—',
+    periodo: f.periodo, turnoStr: f.turnoStr,
+    comissao: f.comissao, liquidados: f.liquidados, inelegiveis: f.inelegiveis
+  };
+}
+
+function exportarPDF() { const d = dadosAdHoc(); if (d) baixarPdf(d); }
+function exportarImagem() { const d = dadosAdHoc(); if (d) baixarImagem(d); }
+
+// ===== TURNOS SALVOS =====
+
+function turnoReportData(t) {
+  return {
+    creator: t.creator_name,
+    periodo: periodoDe(t.start_dt, t.end_dt),
+    turnoStr: `${fmtDT(t.start_dt)} → ${fmtDT(t.end_dt)}`,
+    comissao: Number(t.comissao),
+    liquidados: t.liquidados,
+    inelegiveis: t.inelegiveis
+  };
+}
+
+async function salvarTurno() {
+  const msg = document.getElementById('fechMsg');
+  if (!lastFechamento) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Calcule o fechamento antes de salvar o turno.';
+    return;
+  }
+  const nomeInput = document.getElementById('turnoNome');
+  const creator = (nomeInput.value || '').trim() || lastFechamento.creatorDefault || '';
+  if (!creator) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Digite o nome do creator para salvar o turno.';
+    return;
+  }
+  const f = lastFechamento;
+  const { data, error } = await sb.from('turnos').insert({
+    agency_id: agencyId(),
+    account_id: f.accountId,
+    seller_id: f.sellerId || null,
+    creator_name: creator,
+    start_dt: f.tIni,
+    end_dt: f.tFim,
+    comissao: f.comissao,
+    liquidados: f.liquidados,
+    inelegiveis: f.inelegiveis
+  }).select().single();
+
+  if (error) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Erro ao salvar turno: ' + error.message;
+    return;
+  }
+  nomeInput.value = '';
+  msg.className = 'msg msg-ok';
+  msg.textContent = `Turno de "${creator}" salvo.`;
+  savedTurnos.push(data);
+  savedTurnos.sort((a, b) => a.start_dt.localeCompare(b.start_dt));
+  renderTurnos();
+}
+
+async function loadTurnos(accountId) {
+  savedTurnos = [];
+  if (accountId) {
+    let q = sb.from('turnos').select('*').eq('account_id', accountId).order('start_dt');
+    if (agencyId()) q = q.eq('agency_id', agencyId());
+    const { data } = await q;
+    savedTurnos = data || [];
+  }
+  renderTurnos();
+}
+
+function renderTurnos() {
+  const section = document.getElementById('turnosSection');
+  const list = document.getElementById('turnosList');
+  const warn = document.getElementById('turnosConflito');
+  if (!savedTurnos.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  // Detecta sobreposição de horário (mesmos pedidos em dois creators).
+  const conflictIds = new Set();
+  for (let i = 0; i < savedTurnos.length; i++) {
+    for (let j = i + 1; j < savedTurnos.length; j++) {
+      if (turnosConflitam(savedTurnos[i], savedTurnos[j])) {
+        conflictIds.add(savedTurnos[i].id);
+        conflictIds.add(savedTurnos[j].id);
+      }
+    }
+  }
+  warn.innerHTML = conflictIds.size
+    ? `<div class="msg msg-err" style="margin-bottom:12px;">⚠ ${conflictIds.size} turno(s) com horário sobreposto — os mesmos pedidos podem estar sendo contados para mais de um creator. Ajuste os horários.</div>`
+    : '';
+
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  list.innerHTML = savedTurnos.map(t => {
+    const conflita = conflictIds.has(t.id);
+    const border = conflita ? 'var(--red)' : 'var(--border)';
+    return `<div style="padding:12px 16px;background:var(--card);border:1px solid ${border};border-radius:10px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <strong style="color:var(--text);font-size:14px;">${esc(t.creator_name)}</strong>
+      ${conflita ? '<span style="font-size:11px;color:var(--red);font-weight:700;">⚠ conflito</span>' : ''}
+      <span style="font-size:12px;color:var(--muted);">${fmtDT(t.start_dt)} → ${fmtDT(t.end_dt)}</span>
+      <span style="font-size:13px;color:var(--orange);font-weight:700;">${fmtBRL(t.comissao)}</span>
+      <span style="font-size:11px;color:var(--muted);">${t.liquidados} pagos · ${t.inelegiveis} inelegíveis</span>
+      <span style="margin-left:auto;display:flex;gap:6px;">
+        <button class="btn-sm t-img" data-id="${escAttr(t.id)}">Imagem</button>
+        <button class="btn-sm t-pdf" data-id="${escAttr(t.id)}">PDF</button>
+        <button class="del t-del" data-id="${escAttr(t.id)}" data-name="${escAttr(t.creator_name)}">Remover</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.t-img').forEach(b =>
+    b.addEventListener('click', () => baixarTurnoImagem(b.dataset.id)));
+  list.querySelectorAll('.t-pdf').forEach(b =>
+    b.addEventListener('click', () => baixarTurnoPdf(b.dataset.id)));
+  list.querySelectorAll('.t-del').forEach(b =>
+    b.addEventListener('click', () => removerTurno(b.dataset.id, b.dataset.name)));
+}
+
+function baixarTurnoImagem(id) {
+  const t = savedTurnos.find(x => x.id === id);
+  if (t) baixarImagem(turnoReportData(t));
+}
+function baixarTurnoPdf(id) {
+  const t = savedTurnos.find(x => x.id === id);
+  if (t) baixarPdf(turnoReportData(t));
+}
+
+async function removerTurno(id, name) {
+  if (!confirm(`Remover turno${name ? ' de "' + name + '"' : ''}?`)) return;
+  const prev = savedTurnos;
+  savedTurnos = savedTurnos.filter(t => t.id !== id);
+  renderTurnos();
+  const { error } = await sb.from('turnos').delete().eq('id', id);
+  if (error) { savedTurnos = prev; renderTurnos(); }
 }

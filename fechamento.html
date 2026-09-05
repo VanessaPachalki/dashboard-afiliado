@@ -102,6 +102,12 @@
   </div>
   <div id="resultSummary"></div>
 
+  <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:12px;color:var(--muted);">Salvar turno <em>(opcional)</em>:</span>
+    <input type="text" id="turnoNome" placeholder="Nome do creator" style="max-width:220px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+    <button class="btn-sm" onclick="salvarTurno()">Salvar turno</button>
+  </div>
+
   <div class="card" style="margin-top:16px;">
     <h3>Comissão a Pagar</h3>
     <div id="comissaoResult"></div>
@@ -121,6 +127,14 @@
       <canvas id="chartCancelou"></canvas>
     </div>
   </div>
+</div>
+
+<!-- Turnos salvos -->
+<div class="admin-section" id="turnosSection" style="display:none;">
+  <h2 style="margin-bottom:4px;">Turnos salvos</h2>
+  <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">Turnos salvos desta conta. Baixe o relatório de cada um ou remova. O sistema avisa se dois turnos têm horário sobreposto.</p>
+  <div id="turnosConflito"></div>
+  <div id="turnosList"></div>
 </div>
 
 </div>
