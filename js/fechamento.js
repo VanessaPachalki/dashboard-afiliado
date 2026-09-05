@@ -424,8 +424,16 @@ function calcularFechamento() {
 
       ${comissaoPendente > 0 ? `
       <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
-        <div style="font-size:11px;color:var(--cream);">
-          Comissão estimada pendente: <strong>${fmtBRL(comissaoPendente)}</strong>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Comissão estimada pendente</div>
+        <div style="display:flex;justify-content:center;gap:24px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:16px;font-weight:800;color:var(--cream);">${fmtBRL(comissaoPendente)}</div>
+            <div style="font-size:10px;color:var(--muted);">bruto (você recebe)</div>
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:800;color:var(--cream);">${fmtBRL(comissaoPendente * (seller.commission_pct / 100))}</div>
+            <div style="font-size:10px;color:var(--muted);">ajustado ${seller.commission_pct}% (vendedor)</div>
+          </div>
         </div>
       </div>` : ''}
     </div>
