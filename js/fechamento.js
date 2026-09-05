@@ -812,7 +812,8 @@ function turnoReportData(t) {
     turnoStr: `${fmtDT(t.start_dt)} → ${fmtDT(t.end_dt)}`,
     comissao: Number(t.comissao),
     liquidados: t.liquidados,
-    inelegiveis: t.inelegiveis
+    inelegiveis: t.inelegiveis,
+    qty: t.qty || 1
   };
 }
 
@@ -830,6 +831,8 @@ async function salvarTurno() {
     msg.textContent = 'Digite o nome do creator para salvar o turno.';
     return;
   }
+  let qty = parseInt(document.getElementById('turnoQtd').value, 10);
+  if (!qty || qty < 1) qty = 1;
   const f = lastFechamento;
   const { data, error } = await sb.from('turnos').insert({
     agency_id: agencyId(),
@@ -840,7 +843,8 @@ async function salvarTurno() {
     end_dt: f.tFim,
     comissao: f.comissao,
     liquidados: f.liquidados,
-    inelegiveis: f.inelegiveis
+    inelegiveis: f.inelegiveis,
+    qty
   }).select().single();
 
   if (error) {
@@ -849,6 +853,7 @@ async function salvarTurno() {
     return;
   }
   nomeInput.value = '';
+  document.getElementById('turnoQtd').value = 1;
   msg.className = 'msg msg-ok';
   msg.textContent = `Turno de "${creator}" salvo.`;
   savedTurnos.push(data);
@@ -892,11 +897,15 @@ function renderTurnos() {
   list.innerHTML = savedTurnos.map(t => {
     const conflita = conflictIds.has(t.id);
     const border = conflita ? 'var(--red)' : 'var(--border)';
+    const qty = t.qty || 1;
+    const commHtml = qty > 1
+      ? `${fmtBRL(t.comissao)} <span style="color:var(--muted);font-weight:500;">÷${qty} = <strong style="color:var(--orange);">${fmtBRL(t.comissao / qty)}</strong></span>`
+      : fmtBRL(t.comissao);
     return `<div style="padding:12px 16px;background:var(--card);border:1px solid ${border};border-radius:10px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
       <strong style="color:var(--text);font-size:14px;">${esc(t.creator_name)}</strong>
       ${conflita ? '<span style="font-size:11px;color:var(--red);font-weight:700;">⚠ conflito</span>' : ''}
       <span style="font-size:12px;color:var(--muted);">${fmtDT(t.start_dt)} → ${fmtDT(t.end_dt)}</span>
-      <span style="font-size:13px;color:var(--orange);font-weight:700;">${fmtBRL(t.comissao)}</span>
+      <span style="font-size:13px;color:var(--orange);font-weight:700;">${commHtml}</span>
       <span style="font-size:11px;color:var(--muted);">${t.liquidados} pagos · ${t.inelegiveis} inelegíveis</span>
       <span style="margin-left:auto;display:flex;gap:6px;">
         <button class="btn-sm t-img" data-id="${escAttr(t.id)}">Imagem</button>
