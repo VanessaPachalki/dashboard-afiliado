@@ -9,8 +9,10 @@ let allSellers = [];
 let allAccountsList = [];
 let foundLives = [];    // { content_id, date, hour, order_count, gmv }
 let fetchedOrders = []; // all orders for the selected period+account+lives
-let dataMinTime = null; // menor horário (min do dia) presente no upload
-let dataMaxTime = null; // maior horário (min do dia) presente no upload
+let dataMinTime = null; // menor horário (min do dia) — usado nos cards de referência
+let dataMaxTime = null; // maior horário (min do dia)
+let dataMinDT = null;   // menor data-hora do upload: "YYYY-MM-DDTHH:MM"
+let dataMaxDT = null;   // maior data-hora do upload
 
 // minutos do dia (hora*60+min) -> "HH:MM"
 function fmtMinToHHMM(tot) {
@@ -18,11 +20,17 @@ function fmtMinToHHMM(tot) {
   const h = Math.floor(tot / 60), m = tot % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
-// "HH:MM" -> minutos do dia
-function hhmmToMin(str) {
-  if (!str) return null;
-  const [h, m] = str.split(':').map(Number);
-  return h * 60 + m;
+// data-hora absoluta e comparável de um pedido: "YYYY-MM-DDTHH:MM"
+// (formato ISO ordena lexicograficamente, então dá pra comparar como string)
+function orderDT(o) {
+  return `${o.order_date}T${String(o.hour).padStart(2, '0')}:${String(o.minute || 0).padStart(2, '0')}`;
+}
+// "YYYY-MM-DDTHH:MM" -> "DD/MM HH:MM" (exibição)
+function fmtDT(s) {
+  if (!s) return '--';
+  const [date, time] = s.split('T');
+  const [, m, d] = date.split('-');
+  return `${d}/${m} ${time}`;
 }
 
 // ===== INIT =====
@@ -239,6 +247,13 @@ async function loadLives() {
   // Range global de horário presente no upload (limita o seletor de turno)
   dataMinTime = Math.min(...foundLives.map(l => l.minTime));
   dataMaxTime = Math.max(...foundLives.map(l => l.maxTime));
+  // Range de data-hora absoluta — para turnos que cruzam a meia-noite / vários dias
+  dataMinDT = null; dataMaxDT = null;
+  orders.forEach(o => {
+    const dt = orderDT(o);
+    if (dataMinDT === null || dt < dataMinDT) dataMinDT = dt;
+    if (dataMaxDT === null || dt > dataMaxDT) dataMaxDT = dt;
+  });
 
   msg.className = 'msg msg-ok';
   msg.textContent = `${orders.length} pedidos encontrados em ${foundLives.length} conteúdos.`;
@@ -258,16 +273,14 @@ function renderLives() {
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const subtleBg = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
 
-  // Configura o seletor de turno global, travado no range do upload.
-  // Assim só é possível escolher horários que realmente têm live.
-  const minStr = fmtMinToHHMM(dataMinTime);
-  const maxStr = fmtMinToHHMM(dataMaxTime);
+  // Configura o seletor de turno (data-hora), travado no range do upload.
+  // Como é data-hora absoluta, funciona atravessando a meia-noite / vários dias.
   const turnoIni = document.getElementById('turnoIni');
   const turnoFim = document.getElementById('turnoFim');
-  turnoIni.min = minStr; turnoIni.max = maxStr; turnoIni.value = minStr;
-  turnoFim.min = minStr; turnoFim.max = maxStr; turnoFim.value = maxStr;
+  turnoIni.min = dataMinDT; turnoIni.max = dataMaxDT; turnoIni.value = dataMinDT;
+  turnoFim.min = dataMinDT; turnoFim.max = dataMaxDT; turnoFim.value = dataMaxDT;
   document.getElementById('turnoRange').textContent =
-    `disponível no upload: ${minStr} – ${maxStr}`;
+    `disponível no upload: ${fmtDT(dataMinDT)} – ${fmtDT(dataMaxDT)}`;
 
   // Cards de referência (somente leitura) — mostram os horários disponíveis.
   list.innerHTML = foundLives.map((l) => {
@@ -312,31 +325,32 @@ function calcularFechamento() {
 
   const msg = document.getElementById('fechMsg');
 
-  // Turno do creator: uma faixa de horário única, aplicada a TODAS as lives.
+  // Turno do creator: uma faixa de DATA-HORA única, aplicada a TODAS as lives.
   // O horário é o primário; a live (content_id) é só pano de fundo.
-  const minIni = hhmmToMin(document.getElementById('turnoIni').value);
-  const minFim = hhmmToMin(document.getElementById('turnoFim').value);
+  // Data-hora absoluta => funciona quando o turno cruza a meia-noite.
+  const tIni = document.getElementById('turnoIni').value; // "YYYY-MM-DDTHH:MM"
+  const tFim = document.getElementById('turnoFim').value;
 
-  if (minIni === null || minFim === null) {
+  if (!tIni || !tFim) {
     msg.className = 'msg msg-err';
-    msg.textContent = 'Defina o horário de início e fim do turno.';
+    msg.textContent = 'Defina o início e o fim do turno (data e hora).';
     return;
   }
-  if (minIni >= minFim) {
+  if (tIni >= tFim) {
     msg.className = 'msg msg-err';
     msg.textContent = 'O início do turno deve ser antes do fim.';
     return;
   }
 
   // Filtra todos os pedidos do turno, independente de qual live.
-  // Precisão de minuto: o pedido é um instante (hora*60 + minuto).
+  // Precisão de minuto: o pedido é um instante (data + hora + minuto).
   // Como a conta nunca transmite duas lives ao mesmo tempo, quem estava
   // no ar no minuto do pedido é a dona dele. Fronteira da Opção 1:
   // início INCLUSIVO, fim EXCLUSIVO — o pedido da virada (ex. 15:30)
   // cai só na creator que ASSUMIU, nunca é contado para as duas.
   const orders = fetchedOrders.filter(o => {
-    const orderMin = o.hour * 60 + (o.minute || 0); // ex. 15:30 → 930
-    return orderMin >= minIni && orderMin < minFim;
+    const dt = orderDT(o);
+    return dt >= tIni && dt < tFim;
   });
 
   if (!orders.length) {
@@ -391,7 +405,7 @@ function calcularFechamento() {
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const totalPeriodo = fetchedOrders.length;
-  const turnoStr = `${fmtMinToHHMM(minIni)} – ${fmtMinToHHMM(minFim)}`;
+  const turnoStr = `${fmtDT(tIni)} → ${fmtDT(tFim)}`;
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;

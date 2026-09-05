@@ -72,14 +72,14 @@
 <div class="admin-section" id="livesSection" style="display:none;">
   <h2 style="margin-bottom:4px;">Turno do Creator</h2>
   <p style="font-size:11px;color:var(--muted);margin:0 0 14px;">
-    Defina a faixa de horário do turno. O sistema pega todos os pedidos nesse intervalo,
-    de qualquer live. Os limites vêm do horário real das lives que você subiu.
+    Defina a faixa de data e hora do turno. O sistema pega todos os pedidos nesse intervalo,
+    de qualquer live. Funciona quando o turno cruza a meia-noite. Os limites vêm das lives que você subiu.
   </p>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
     <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Turno:</span>
-    <input type="time" id="turnoIni" style="width:100px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;">
-    <span style="color:var(--muted);font-size:12px;">às</span>
-    <input type="time" id="turnoFim" style="width:100px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;">
+    <input type="datetime-local" id="turnoIni" style="width:210px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+    <span style="color:var(--muted);font-size:12px;">até</span>
+    <input type="datetime-local" id="turnoFim" style="width:210px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
     <span id="turnoRange" style="font-size:11px;color:var(--muted);margin-left:6px;"></span>
   </div>
 
