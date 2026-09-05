@@ -168,11 +168,7 @@
   await resolveTenant();
   const session = await requireAuth();
   if (!session) return;
-  const role = await getUserRole();
-  if (role?.role !== 'admin') {
-    window.location.href = 'dashboard.html';
-    return;
-  }
+  // Creator e matriz têm acesso ao fechamento (isolado por RLS).
   await renderNav('fechamento');
   await initFechamento();
 })();

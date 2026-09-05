@@ -3,61 +3,19 @@
 // Este arquivo DEVE ser carregado ANTES de qualquer outro JS.
 // ================================================
 
-// --- Step 1: Extract slug from subdomain (synchronous) ---
-(function() {
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
+// --- Marca única (BRX). Sem whitelabel/subdomínio. ---
+window.__TENANT_SLUG = 'brx';
+window.AGENCY = null;
 
-  let slug = null;
+// --- Resolve a marca fixa (BRX) com cache ---
 
-  // Production: agencia.spacehub-ai.com
-  if (parts.length >= 3) {
-    const domain = parts.slice(-2).join('.');
-    if (domain === 'spacehub-ai.com') {
-      slug = parts[0];
-    }
-  }
-
-  // Reserved slugs → treat as no tenant (superadmin portal)
-  const RESERVED = ['www', 'app', 'api', 'admin', 'test', 'staging', 'mail', 'ftp', 'static', 'assets'];
-  if (slug && RESERVED.includes(slug)) slug = null;
-
-  // Dev fallback: localhost?agency=slug
-  if (!slug && (hostname === 'localhost' || hostname === '127.0.0.1')) {
-    slug = new URLSearchParams(window.location.search).get('agency');
-  }
-
-  window.__TENANT_SLUG = slug;
-  window.__IS_SUPERADMIN_PORTAL = !slug;
-  window.AGENCY = null;
-})();
-
-// --- Step 2: Resolve agency config (async, with cache) ---
-
-const TENANT_CACHE_KEY = 'spacehub_tenant_';
+const TENANT_CACHE_KEY = 'brx_tenant';
 const TENANT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const BRX_FALLBACK = { id: null, slug: 'brx', name: 'BRX', primary_color: '#8B5CF6', logo_url: null };
 
 async function resolveTenant() {
-  const slug = window.__TENANT_SLUG;
-
-  // No slug → superadmin portal, use SPACEHUB defaults
-  if (!slug) {
-    window.AGENCY = {
-      id: null,
-      slug: null,
-      name: 'SPACEHUB',
-      primary_color: '#E8551B',
-      logo_url: null,
-      plan: 'pro',
-      is_superadmin_portal: true
-    };
-    applyBranding(window.AGENCY);
-    return window.AGENCY;
-  }
-
-  // Check sessionStorage cache
-  const cacheKey = TENANT_CACHE_KEY + slug;
-  const cached = sessionStorage.getItem(cacheKey);
+  // Cache
+  const cached = sessionStorage.getItem(TENANT_CACHE_KEY);
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
@@ -66,46 +24,25 @@ async function resolveTenant() {
         applyBranding(window.AGENCY);
         return window.AGENCY;
       }
-    } catch (e) { /* cache corrupted, ignore */ }
+    } catch (e) { /* cache corrompido, ignora */ }
   }
 
-  // Fetch from Supabase (direct query — fast, no edge function needed)
-  // sb may not be available yet, so we use fetch directly
-  const url = SUPABASE_URL + '/rest/v1/agencies?slug=eq.' + encodeURIComponent(slug) + '&is_active=eq.true&select=id,slug,name,primary_color,logo_url,logo_height,plan&limit=1';
+  // Busca a linha fixa da marca BRX
+  const url = SUPABASE_URL + '/rest/v1/agencies?slug=eq.brx&select=id,slug,name,primary_color,logo_url,logo_height&limit=1';
   try {
     const resp = await fetch(url, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Accept': 'application/json'
-      }
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Accept': 'application/json' }
     });
     const data = await resp.json();
-
-    if (!data || !data.length) {
-      // Agency not found → redirect to main site
-      window.location.href = 'https://spacehub-ai.com';
-      return null;
-    }
-
-    const agency = data[0];
+    const agency = (data && data[0]) ? data[0] : { ...BRX_FALLBACK };
     agency._ts = Date.now();
-    agency.is_superadmin_portal = false;
     window.AGENCY = agency;
-
-    // Cache it
-    sessionStorage.setItem(cacheKey, JSON.stringify(agency));
-
+    sessionStorage.setItem(TENANT_CACHE_KEY, JSON.stringify(agency));
     applyBranding(agency);
     return agency;
-
   } catch (err) {
-    console.error('Tenant resolution failed:', err);
-    // Fallback: use SPACEHUB defaults so the page doesn't break
-    window.AGENCY = {
-      id: null, slug: slug, name: 'SPACEHUB',
-      primary_color: '#E8551B', logo_url: null, plan: 'starter',
-      is_superadmin_portal: false
-    };
+    console.error('Branding resolution failed:', err);
+    window.AGENCY = { ...BRX_FALLBACK };
     applyBranding(window.AGENCY);
     return window.AGENCY;
   }

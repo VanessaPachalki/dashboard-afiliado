@@ -106,7 +106,7 @@
   const session = await requireAuth();
   if (!session) return;
   const role = await getUserRole();
-  if (role?.role !== 'admin') {
+  if (!role?.is_matriz) {
     window.location.href = 'dashboard.html';
     return;
   }

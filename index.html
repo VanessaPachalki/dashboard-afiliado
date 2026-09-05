@@ -68,47 +68,12 @@ async function handleGoogle() {
 
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
-    const email = session.user.email;
-    const agency = window.AGENCY;
-
-    // If on agency subdomain, check agency_members
-    // If on superadmin portal, check superadmins
-    let role = null;
-
-    if (agency?.id) {
-      // Agency subdomain → check membership
-      const { data: member } = await sb
-        .from('agency_members')
-        .select('role')
-        .eq('agency_id', agency.id)
-        .eq('email', email)
-        .maybeSingle();
-
-      if (member) {
-        role = member.role;
-      } else {
-        // Check if superadmin (can access any agency)
-        const { data: sa } = await sb
-          .from('superadmins')
-          .select('email')
-          .eq('email', email)
-          .maybeSingle();
-        if (sa) role = 'agency_admin';
-      }
-    } else {
-      // Superadmin portal
-      const { data: sa } = await sb
-        .from('superadmins')
-        .select('email')
-        .eq('email', email)
-        .maybeSingle();
-      if (sa) role = 'superadmin';
-    }
+    const role = await getUserRole();
 
     if (!role) {
       const { error: logErr } = await sb.from('login_attempts').insert({
-        email,
-        agency_id: agency?.id || null
+        email: session.user.email,
+        agency_id: window.AGENCY?.id || null
       });
       console.log('login_attempt insert:', logErr ? logErr : 'ok');
       await sb.auth.signOut();
@@ -118,13 +83,8 @@ async function handleGoogle() {
       return;
     }
 
-    if (role === 'superadmin' && !agency?.id) {
-      window.location.href = 'superadmin.html';
-    } else if (role === 'agency_admin') {
-      window.location.href = 'admin.html';
-    } else {
-      window.location.href = 'dashboard.html';
-    }
+    // Matriz → visão geral; creator → o próprio espaço.
+    window.location.href = role.is_matriz ? 'admin.html' : 'dashboard.html';
   }
 })();
 </script>
