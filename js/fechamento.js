@@ -21,6 +21,17 @@ function fmtMinToHHMM(tot) {
   const h = Math.floor(tot / 60), m = tot % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
+// "#E8551B" -> [232, 85, 27] (para o jsPDF)
+function hexToRgb(hex) {
+  const h = String(hex || '').replace('#', '');
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  return isNaN(n) ? [232, 85, 27] : [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+// branding do tenant atual (whitelabel) — cai pra SPACEHUB se não houver
+function brandName() { return (window.AGENCY && window.AGENCY.name) || 'SPACEHUB'; }
+function brandHex() { return window.BRAND_COLOR || '#E8551B'; }
+
 // data-hora absoluta e comparável de um pedido: "YYYY-MM-DDTHH:MM"
 // (formato ISO ordena lexicograficamente, então dá pra comparar como string)
 function orderDT(o) {
@@ -572,11 +583,11 @@ function exportarPDF() {
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const orange = [232, 85, 27];
+  const orange = hexToRgb(brandHex());
 
   // Cabeçalho
   doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
-  doc.text('SPACEHUB', 20, 24);
+  doc.text(brandName(), 20, 24);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
   doc.text('Fechamento de Comissão', 20, 31);
   doc.setDrawColor(220); doc.line(20, 38, 190, 38);
@@ -630,7 +641,7 @@ function exportarImagem() {
 
   const f = lastFechamento;
   const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const orange = '#E8551B';
+  const orange = brandHex();
 
   const W = 1080, H = 1350;
   const canvas = document.createElement('canvas');
@@ -650,7 +661,7 @@ function exportarImagem() {
 
   // Cabeçalho
   ctx.fillStyle = orange; ctx.font = '800 88px Inter, Arial';
-  ctx.fillText('SPACEHUB', 80, y);
+  ctx.fillText(brandName(), 80, y);
   y += 52;
   ctx.fillStyle = '#8a8a8a'; ctx.font = '400 34px Inter, Arial';
   ctx.fillText('Fechamento de Comissão', 82, y);
