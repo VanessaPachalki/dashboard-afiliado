@@ -48,10 +48,14 @@ async function getUserRole() {
   // Creator convidado e ativo
   const { data: cr } = await sb
     .from('creators')
-    .select('email, display_name, active')
+    .select('email, display_name, active, user_id')
     .eq('email', email)
     .maybeSingle();
   if (cr && cr.active) {
+    // Captura o user_id no 1º login (pra matriz cruzar com os dados dele)
+    if (!cr.user_id) {
+      sb.from('creators').update({ user_id: session.user.id }).eq('email', email).then(() => {});
+    }
     return { role: 'creator', display_name: cr.display_name || email, is_matriz: false };
   }
 

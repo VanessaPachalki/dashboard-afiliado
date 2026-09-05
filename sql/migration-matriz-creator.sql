@@ -25,9 +25,11 @@ truncate table public.turnos, public.sellers, public.orders, public.uploads, pub
 create table if not exists public.creators (
   email text primary key,
   display_name text,
+  user_id uuid references auth.users(id),  -- preenchido no 1º login do creator
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+create index if not exists idx_creators_user on public.creators(user_id);
 alter table public.creators enable row level security;
 
 -- 3) Dono (creator) nas tabelas de dados
@@ -93,5 +95,9 @@ create policy "creators_matriz" on public.creators for all
   using (public.is_matriz()) with check (public.is_matriz());
 create policy "creators_self_read" on public.creators for select
   using (email = auth.jwt()->>'email');
+-- creator grava o próprio user_id no 1º login (só a própria linha)
+create policy "creators_self_update" on public.creators for update
+  using (email = auth.jwt()->>'email')
+  with check (email = auth.jwt()->>'email');
 
 commit;

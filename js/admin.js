@@ -1,13 +1,16 @@
 // ================================================
-// SPACEHUB - Admin Logic
+// BRX - Visão Matriz (creators + overview)
 // ================================================
 
 const PER_PAGE = 15;
 
+function fmtBRL(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 function renderPag(containerId, currentPage, totalPages, onPageChange) {
   const el = document.getElementById(containerId);
   if (!el || totalPages <= 1) { if (el) el.innerHTML = ''; return; }
-
   let html = `<button ${currentPage === 1 ? 'disabled' : ''} data-p="${currentPage - 1}">&laquo;</button>`;
   for (let i = 1; i <= totalPages; i++) {
     html += `<button class="${i === currentPage ? 'active' : ''}" data-p="${i}">${i}</button>`;
@@ -20,275 +23,150 @@ function renderPag(containerId, currentPage, totalPages, onPageChange) {
 }
 
 async function loadAdmin() {
-  loadEmails().catch(e => console.error('loadEmails erro:', e));
-  loadAccounts().catch(e => console.error('loadAccounts erro:', e));
-  loadLoginAttempts().catch(e => console.error('loadLoginAttempts erro:', e));
-  loadAllUploads().catch(e => console.error('loadAllUploads erro:', e));
+  await Promise.all([loadCreators(), loadStats()]);
+  render();
+  loadLoginAttempts().catch(e => console.error('loadLoginAttempts:', e));
 }
 
-// ===== EMAILS =====
+// ===== CREATORS + STATS =====
 
-let allEmails = [];
-let emailsPage = 1;
+let creatorsList = [];
+let statsByUser = {}; // user_id -> { uploads, lastUpload, comissao, turnos }
 
-async function loadEmails() {
-  let q = sb
-    .from('agency_members')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (agencyId()) q = q.eq('agency_id', agencyId());
-  const { data, error } = await q;
-
-  allEmails = data || [];
-  emailsPage = 1;
-  renderEmails();
+async function loadCreators() {
+  const { data } = await sb.from('creators').select('*').order('created_at', { ascending: false });
+  creatorsList = data || [];
 }
 
-function renderEmails() {
-  const tb = document.getElementById('tEmails');
-  if (!allEmails.length) {
-    tb.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;">Nenhum e-mail cadastrado.</td></tr>';
-    renderPag('pagEmails', 1, 1, () => {});
-    return;
-  }
+async function loadStats() {
+  statsByUser = {};
+  const bump = (uid) => statsByUser[uid] || (statsByUser[uid] = { uploads: 0, lastUpload: null, comissao: 0, turnos: 0 });
 
-  const totalPages = Math.ceil(allEmails.length / PER_PAGE);
-  const start = (emailsPage - 1) * PER_PAGE;
-  const page = allEmails.slice(start, start + PER_PAGE);
-
-  tb.innerHTML = page.map(e => {
-    const date = new Date(e.created_at).toLocaleDateString('pt-BR');
-    const roleTag = (e.role === 'admin' || e.role === 'agency_admin')
-      ? '<span style="color:var(--orange);font-weight:600;">Admin</span>'
-      : '<span style="color:var(--muted);">Afiliado</span>';
-    return `<tr>
-      <td>${esc(e.email)}</td>
-      <td>${esc(e.display_name || '-')}</td>
-      <td>${roleTag}</td>
-      <td>${date}</td>
-      <td><button class="del" data-email="${escAttr(e.email)}">Remover</button></td>
-    </tr>`;
-  }).join('');
-
-  tb.querySelectorAll('.del').forEach(btn => {
-    btn.addEventListener('click', () => removeEmail(btn.dataset.email));
+  // uploads (matriz vê todos via RLS)
+  const { data: ups } = await sb.from('uploads').select('user_id, uploaded_at');
+  (ups || []).forEach(u => {
+    if (!u.user_id) return;
+    const s = bump(u.user_id);
+    s.uploads++;
+    if (!s.lastUpload || u.uploaded_at > s.lastUpload) s.lastUpload = u.uploaded_at;
   });
 
-  renderPag('pagEmails', emailsPage, totalPages, p => { emailsPage = p; renderEmails(); });
+  // turnos (comissão salva)
+  const { data: ts } = await sb.from('turnos').select('owner_id, comissao');
+  (ts || []).forEach(t => {
+    if (!t.owner_id) return;
+    const s = bump(t.owner_id);
+    s.comissao += Number(t.comissao) || 0;
+    s.turnos++;
+  });
 }
 
-async function addEmail() {
-  const email = document.getElementById('newEmail').value.trim().toLowerCase();
-  const name = document.getElementById('newName').value.trim();
-  const role = document.getElementById('newRole').value;
-  const msg = document.getElementById('emailMsg');
+function render() {
+  renderOverview();
+  renderCreators();
+}
 
+function renderOverview() {
+  const total = creatorsList.length;
+  const ativos = creatorsList.filter(c => c.active).length;
+  let comissao = 0, uploads = 0;
+  Object.values(statsByUser).forEach(s => { comissao += s.comissao; uploads += s.uploads; });
+  document.getElementById('overview').innerHTML = `
+    <div class="kpi"><div class="kpi-v">${total}</div><div class="kpi-l">Creators (${ativos} ativos)</div></div>
+    <div class="kpi"><div class="kpi-v" style="color:var(--orange);">${fmtBRL(comissao)}</div><div class="kpi-l">Comissão (turnos salvos)</div></div>
+    <div class="kpi"><div class="kpi-v">${uploads}</div><div class="kpi-l">Uploads</div></div>
+  `;
+}
+
+function renderCreators() {
+  const list = document.getElementById('creatorsList');
+  if (!creatorsList.length) {
+    list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px;">Nenhum creator convidado ainda. Convide pelo e-mail acima.</div>';
+    return;
+  }
+  list.innerHTML = creatorsList.map(c => {
+    const s = (c.user_id && statsByUser[c.user_id]) || { uploads: 0, lastUpload: null, comissao: 0, turnos: 0 };
+    const last = s.lastUpload ? new Date(s.lastUpload).toLocaleDateString('pt-BR') : '—';
+    const statusTag = c.active
+      ? '<span style="font-size:11px;color:var(--green);font-weight:600;">ativo</span>'
+      : '<span style="font-size:11px;color:var(--muted);">inativo</span>';
+    const activity = c.user_id
+      ? `${s.uploads} uploads · últ. ${last}`
+      : '<span style="color:var(--muted);">convidado (ainda não logou)</span>';
+    const verBtn = c.user_id
+      ? `<button class="btn-sm c-ver" data-uid="${escAttr(c.user_id)}">Ver lives</button>`
+      : '';
+    return `<div style="padding:12px 16px;background:var(--card);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <strong style="color:var(--text);font-size:14px;">${esc(c.display_name || c.email)}</strong>
+      <span style="font-size:11px;color:var(--muted);">${esc(c.email)}</span>
+      ${statusTag}
+      <span style="font-size:11px;color:var(--muted);">${activity}</span>
+      <span style="font-size:13px;color:var(--orange);font-weight:700;">${fmtBRL(s.comissao)}</span>
+      <span style="margin-left:auto;display:flex;gap:6px;">
+        ${verBtn}
+        <button class="del c-del" data-email="${escAttr(c.email)}" data-name="${escAttr(c.display_name || c.email)}">Remover</button>
+      </span>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.c-ver').forEach(b =>
+    b.addEventListener('click', () => { window.location.href = `dashboard.html?user=${encodeURIComponent(b.dataset.uid)}`; }));
+  list.querySelectorAll('.c-del').forEach(b =>
+    b.addEventListener('click', () => removeCreator(b.dataset.email, b.dataset.name)));
+}
+
+async function inviteCreator() {
+  const email = document.getElementById('inviteEmail').value.trim().toLowerCase();
+  const name = document.getElementById('inviteName').value.trim();
+  const msg = document.getElementById('inviteMsg');
   if (!email || !email.includes('@')) {
+    msg.className = 'msg msg-err'; msg.textContent = 'E-mail inválido.'; return;
+  }
+  const { data, error } = await sb.from('creators')
+    .insert({ email, display_name: name || null, active: true })
+    .select().single();
+  if (error) {
     msg.className = 'msg msg-err';
-    msg.textContent = 'E-mail invalido.';
+    msg.textContent = error.code === '23505' ? 'Este creator já foi convidado.' : error.message;
     return;
   }
-
-  // Map role: admin → agency_admin for agency_members table
-  const memberRole = role === 'admin' ? 'agency_admin' : 'affiliate';
-
-  // Optimistic: add to local list + render immediately
-  const optimistic = { email, role: memberRole, display_name: name || null, agency_id: agencyId(), created_at: new Date().toISOString() };
-  allEmails.unshift(optimistic);
-  emailsPage = 1;
-  renderEmails();
+  creatorsList.unshift(data);
+  document.getElementById('inviteEmail').value = '';
+  document.getElementById('inviteName').value = '';
   msg.className = 'msg msg-ok';
-  msg.textContent = `${email} adicionado com sucesso.`;
-  document.getElementById('newEmail').value = '';
-  document.getElementById('newName').value = '';
-
-  // Cascade: refresh accounts email dropdown
-  refreshAccountEmailDropdown();
-
-  // Sync with DB in background
-  const { error } = await sb.from('agency_members').insert({
-    email, role: memberRole, display_name: name || null, agency_id: agencyId()
-  });
-
-  if (error) {
-    // Rollback: remove optimistic entry and show error
-    allEmails = allEmails.filter(e => e !== optimistic);
-    renderEmails();
-    msg.className = 'msg msg-err';
-    msg.textContent = error.code === '23505' ? 'Este e-mail ja esta cadastrado.' : error.message;
-  }
+  msg.textContent = `${email} convidado. É só ele logar com Google.`;
+  render();
 }
 
-async function removeEmail(email) {
-  if (!confirm(`Tem certeza que deseja remover ${email}?`)) return;
-
-  // Optimistic: remove from local list immediately
-  const removed = allEmails.find(e => e.email === email);
-  allEmails = allEmails.filter(e => e.email !== email);
-  renderEmails();
-  refreshAccountEmailDropdown();
-
-  let delQuery = sb.from('agency_members').delete().eq('email', email);
-  if (agencyId()) delQuery = delQuery.eq('agency_id', agencyId());
-  const { error } = await delQuery;
-  if (error) {
-    // Rollback
-    if (removed) allEmails.unshift(removed);
-    renderEmails();
-    refreshAccountEmailDropdown();
-  }
+async function removeCreator(email, name) {
+  if (!confirm(`Remover o creator "${name}"? Ele perde o acesso (os dados dele permanecem).`)) return;
+  const prev = creatorsList;
+  creatorsList = creatorsList.filter(c => c.email !== email);
+  render();
+  const { error } = await sb.from('creators').delete().eq('email', email);
+  if (error) { creatorsList = prev; render(); }
 }
 
-// ===== HELPER: cascade refresh =====
-
-function refreshAccountEmailDropdown() {
-  const select = document.getElementById('newAccountEmail');
-  if (!select) return;
-  select.innerHTML = '<option value="">Selecione o e-mail</option>';
-  allEmails.forEach(e => {
-    const label = e.display_name ? `${esc(e.display_name)} (${esc(e.email)})` : esc(e.email);
-    select.innerHTML += `<option value="${escAttr(e.email)}">${label}</option>`;
-  });
-}
-
-// ===== ACCOUNTS =====
-
-let allAccounts = [];
-let accountsPage = 1;
-
-async function loadAccounts() {
-  let accQ = sb.from('accounts').select('*').order('created_at', { ascending: false });
-  if (agencyId()) accQ = accQ.eq('agency_id', agencyId());
-  const { data: accounts, error } = await accQ;
-
-  let memQ = sb.from('agency_members').select('email, display_name').order('email');
-  if (agencyId()) memQ = memQ.eq('agency_id', agencyId());
-  const { data: emails } = await memQ;
-
-  const select = document.getElementById('newAccountEmail');
-  select.innerHTML = '<option value="">Selecione o e-mail</option>';
-  (emails || []).forEach(e => {
-    const label = e.display_name ? `${esc(e.display_name)} (${esc(e.email)})` : esc(e.email);
-    select.innerHTML += `<option value="${escAttr(e.email)}">${label}</option>`;
-  });
-
-  allAccounts = accounts || [];
-  accountsPage = 1;
-  renderAccounts();
-}
-
-function renderAccounts() {
-  const tb = document.getElementById('tAccounts');
-  if (!allAccounts.length) {
-    tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;">Nenhuma conta cadastrada ainda.</td></tr>';
-    renderPag('pagAccounts', 1, 1, () => {});
-    return;
-  }
-
-  const totalPages = Math.ceil(allAccounts.length / PER_PAGE);
-  const start = (accountsPage - 1) * PER_PAGE;
-  const page = allAccounts.slice(start, start + PER_PAGE);
-
-  tb.innerHTML = page.map(a => {
-    const date = new Date(a.created_at).toLocaleDateString('pt-BR');
-    return `<tr>
-      <td><strong>${esc(a.name)}</strong></td>
-      <td>${esc(a.email)}</td>
-      <td>${date}</td>
-      <td><button class="del" data-id="${escAttr(a.id)}" data-name="${escAttr(a.name)}">Remover</button></td>
-    </tr>`;
-  }).join('');
-
-  tb.querySelectorAll('.del').forEach(btn => {
-    btn.addEventListener('click', () => removeAccount(btn.dataset.id, btn.dataset.name));
-  });
-
-  renderPag('pagAccounts', accountsPage, totalPages, p => { accountsPage = p; renderAccounts(); });
-}
-
-async function addAccount() {
-  const email = document.getElementById('newAccountEmail').value;
-  const name = document.getElementById('newAccountName').value.trim();
-  const msg = document.getElementById('accountMsg');
-
-  if (!email) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Selecione um e-mail.';
-    return;
-  }
-  if (!name) {
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Digite um nome para a conta.';
-    return;
-  }
-
-  // Optimistic: add to local list immediately with temp id
-  const tempId = 'temp-' + Date.now();
-  const optimistic = { id: tempId, email, name, created_at: new Date().toISOString() };
-  allAccounts.unshift(optimistic);
-  accountsPage = 1;
-  renderAccounts();
-  msg.className = 'msg msg-ok';
-  msg.textContent = `Conta "${name}" criada com sucesso.`;
-  document.getElementById('newAccountName').value = '';
-  document.getElementById('newAccountEmail').value = '';
-
-  const { data, error } = await sb.from('accounts').insert({ email, name, agency_id: agencyId() }).select().single();
-
-  if (error) {
-    // Rollback
-    allAccounts = allAccounts.filter(a => a.id !== tempId);
-    renderAccounts();
-    msg.className = 'msg msg-err';
-    msg.textContent = 'Erro: ' + error.message;
-  } else if (data) {
-    // Replace temp with real record
-    const idx = allAccounts.findIndex(a => a.id === tempId);
-    if (idx !== -1) allAccounts[idx] = data;
-  }
-}
-
-async function removeAccount(id, name) {
-  if (!confirm(`Tem certeza que deseja remover a conta "${name}" e todos os dados vinculados?`)) return;
-
-  // Optimistic
-  const removed = allAccounts.find(a => a.id === id);
-  allAccounts = allAccounts.filter(a => a.id !== id);
-  renderAccounts();
-
-  const { error } = await sb.from('accounts').delete().eq('id', id);
-  if (error) {
-    if (removed) allAccounts.unshift(removed);
-    renderAccounts();
-  }
-}
-
-// ===== LOGIN ATTEMPTS =====
+// ===== AVANÇADO: tentativas de login bloqueadas =====
 
 let allAttempts = [];
 let attemptsPage = 1;
 
 async function loadLoginAttempts() {
-  let attQ = sb.from('login_attempts').select('*').order('attempted_at', { ascending: false });
-  if (agencyId()) attQ = attQ.eq('agency_id', agencyId());
-  const { data, error } = await attQ;
-
+  const { data, error } = await sb.from('login_attempts').select('*').order('attempted_at', { ascending: false });
   const tb = document.getElementById('tAttempts');
   if (error || !data?.length) {
     allAttempts = [];
-    tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;">Nenhuma tentativa bloqueada.</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;">Nenhuma tentativa bloqueada.</td></tr>';
     renderPag('pagAttempts', 1, 1, () => {});
     return;
   }
-
-  // Agrupar por email
   const grouped = {};
   data.forEach(a => {
     if (!grouped[a.email]) grouped[a.email] = { count: 0, last: a.attempted_at };
     grouped[a.email].count++;
     if (a.attempted_at > grouped[a.email].last) grouped[a.email].last = a.attempted_at;
   });
-
   allAttempts = Object.entries(grouped).sort((a, b) => b[1].last.localeCompare(a[1].last));
   attemptsPage = 1;
   renderAttempts();
@@ -296,16 +174,15 @@ async function loadLoginAttempts() {
 
 function renderAttempts() {
   const tb = document.getElementById('tAttempts');
+  if (!tb) return;
   if (!allAttempts.length) {
     tb.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;">Nenhuma tentativa bloqueada.</td></tr>';
     renderPag('pagAttempts', 1, 1, () => {});
     return;
   }
-
   const totalPages = Math.ceil(allAttempts.length / PER_PAGE);
   const start = (attemptsPage - 1) * PER_PAGE;
   const page = allAttempts.slice(start, start + PER_PAGE);
-
   tb.innerHTML = page.map(([email, info]) => {
     const date = new Date(info.last).toLocaleString('pt-BR');
     const countStyle = info.count >= 3 ? 'color:var(--orange);font-weight:700;' : '';
@@ -316,108 +193,15 @@ function renderAttempts() {
       <td><button class="del" data-email="${escAttr(email)}">Remover</button></td>
     </tr>`;
   }).join('');
-
-  tb.querySelectorAll('.del').forEach(btn => {
-    btn.addEventListener('click', () => removeAttempt(btn.dataset.email));
-  });
-
+  tb.querySelectorAll('.del').forEach(btn => btn.addEventListener('click', () => removeAttempt(btn.dataset.email)));
   renderPag('pagAttempts', attemptsPage, totalPages, p => { attemptsPage = p; renderAttempts(); });
 }
 
 async function removeAttempt(email) {
   if (!confirm(`Remover tentativas de ${email}?`)) return;
-
-  // Optimistic
   const removed = allAttempts.find(([e]) => e === email);
   allAttempts = allAttempts.filter(([e]) => e !== email);
   renderAttempts();
-
   const { error } = await sb.from('login_attempts').delete().eq('email', email);
-  if (error) {
-    if (removed) allAttempts.unshift(removed);
-    renderAttempts();
-  }
-}
-
-// ===== ALL UPLOADS =====
-
-let allUploads = [];
-let uploadsPage = 1;
-
-async function loadAllUploads() {
-  let upQ = sb.from('uploads').select('*, accounts(name, email)').order('uploaded_at', { ascending: false });
-  if (agencyId()) upQ = upQ.eq('agency_id', agencyId());
-  const { data: uploads, error } = await upQ;
-
-  allUploads = uploads || [];
-
-  const emails = [...new Set(allUploads.map(u => u.accounts?.email).filter(Boolean))].sort();
-  const accounts = [...new Set(allUploads.map(u => u.accounts?.name).filter(Boolean))].sort();
-
-  const filterEmail = document.getElementById('filterEmail');
-  const filterAccount = document.getElementById('filterAccount');
-  filterEmail.innerHTML = '<option value="">Todos os e-mails</option>' + emails.map(e => `<option value="${e}">${e}</option>`).join('');
-  filterAccount.innerHTML = '<option value="">Todas as contas</option>' + accounts.map(a => `<option value="${a}">${a}</option>`).join('');
-
-  uploadsPage = 1;
-  renderUploads(allUploads);
-}
-
-function filterUploads() {
-  const email = document.getElementById('filterEmail').value;
-  const account = document.getElementById('filterAccount').value;
-  let filtered = allUploads;
-  if (email) filtered = filtered.filter(u => u.accounts?.email === email);
-  if (account) filtered = filtered.filter(u => u.accounts?.name === account);
-  uploadsPage = 1;
-  renderUploads(filtered);
-}
-
-let currentFilteredUploads = [];
-
-function renderUploads(uploads) {
-  currentFilteredUploads = uploads;
-  const tb = document.getElementById('tUploads');
-  if (!uploads?.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:var(--muted);text-align:center;">Nenhum upload.</td></tr>';
-    renderPag('pagUploads', 1, 1, () => {});
-    return;
-  }
-
-  const totalPages = Math.ceil(uploads.length / PER_PAGE);
-  const start = (uploadsPage - 1) * PER_PAGE;
-  const page = uploads.slice(start, start + PER_PAGE);
-
-  tb.innerHTML = page.map(u => {
-    const date = new Date(u.uploaded_at).toLocaleDateString('pt-BR');
-    return `<tr>
-      <td>${esc(u.filename)}</td>
-      <td style="font-size:11px;">${esc(u.accounts?.email || '-')}</td>
-      <td style="color:var(--orange);font-size:12px;">${esc(u.accounts?.name || 'Sem conta')}</td>
-      <td class="r">${u.row_count.toLocaleString()}</td>
-      <td>${date}</td>
-      <td><button class="del" data-id="${escAttr(u.id)}" data-name="${escAttr(u.filename)}">Excluir</button></td>
-    </tr>`;
-  }).join('');
-
-  tb.querySelectorAll('.del').forEach(btn => {
-    btn.addEventListener('click', () => deleteUploadAdmin(btn.dataset.id, btn.dataset.name));
-  });
-
-  renderPag('pagUploads', uploadsPage, totalPages, p => { uploadsPage = p; renderUploads(currentFilteredUploads); });
-}
-
-async function deleteUploadAdmin(id, filename) {
-  if (!confirm(`Tem certeza que deseja excluir "${filename}" e todos os pedidos?`)) return;
-
-  // Optimistic
-  const removed = allUploads.find(u => u.id === id);
-  allUploads = allUploads.filter(u => u.id !== id);
-  filterUploads();
-
-  const { error } = await sb.from('uploads').delete().eq('id', id);
-  if (error) {
-    if (removed) allUploads.unshift(removed);
-    filterUploads();
-  }
+  if (error) { if (removed) allAttempts.unshift(removed); renderAttempts(); }
 }

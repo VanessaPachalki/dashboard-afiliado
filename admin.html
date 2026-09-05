@@ -13,85 +13,41 @@
 <body>
 
 <div class="topbar">
-  <div class="brand">SPACEHUB <small>Painel Admin</small></div>
+  <div class="brand">SPACEHUB <small>Matriz</small></div>
   <div class="nav-links" id="topbar-nav"></div>
 </div>
 
-<div class="container" style="max-width:900px;">
+<div class="container" style="max-width:1000px;">
 
-<!-- Approved Emails -->
+<!-- Visão geral -->
 <div class="admin-section">
-  <h2>E-mails Aprovados</h2>
-  <div class="add-row">
-    <input type="email" id="newEmail" placeholder="email@exemplo.com">
-    <input type="text" id="newName" placeholder="Nome (opcional)" style="max-width:200px;">
-    <select id="newRole">
-      <option value="affiliate">Afiliado</option>
-      <option value="admin">Admin</option>
-    </select>
-    <button class="btn-sm" onclick="addEmail()">Adicionar</button>
-  </div>
-  <div class="msg" id="emailMsg" style="margin-bottom:12px;"></div>
-  <div class="tbl">
-    <table>
-      <thead><tr><th>E-mail</th><th>Nome</th><th>Perfil</th><th>Data</th><th></th></tr></thead>
-      <tbody id="tEmails"></tbody>
-    </table>
-  </div>
-  <div class="pag" id="pagEmails"></div>
+  <h2>Visão Geral</h2>
+  <div id="overview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
 </div>
 
-<!-- Contas -->
+<!-- Creators -->
 <div class="admin-section">
-  <h2>Contas de Afiliados</h2>
+  <h2>Creators</h2>
   <div class="add-row">
-    <select id="newAccountEmail">
-      <option value="">Selecione o e-mail</option>
-    </select>
-    <input type="text" id="newAccountName" placeholder="Nome da conta (ex: Conta Principal)">
-    <button class="btn-sm" onclick="addAccount()">Criar conta</button>
+    <input type="email" id="inviteEmail" placeholder="email@creator.com">
+    <input type="text" id="inviteName" placeholder="Nome (opcional)" style="max-width:200px;">
+    <button class="btn-sm" onclick="inviteCreator()">Convidar</button>
   </div>
-  <div class="msg" id="accountMsg" style="margin-bottom:12px;"></div>
-  <div class="tbl">
-    <table>
-      <thead><tr><th>Conta</th><th>E-mail</th><th>Criada em</th><th></th></tr></thead>
-      <tbody id="tAccounts"></tbody>
-    </table>
-  </div>
-  <div class="pag" id="pagAccounts"></div>
+  <div class="msg" id="inviteMsg" style="margin-bottom:12px;"></div>
+  <div id="creatorsList"></div>
 </div>
 
-<!-- Tentativas Bloqueadas -->
-<div class="admin-section">
-  <h2>Tentativas de Login Bloqueadas</h2>
-  <div class="tbl">
+<!-- Avançado -->
+<details class="admin-section">
+  <summary style="cursor:pointer;font-weight:700;color:var(--muted);list-style:none;">Avançado — tentativas de login bloqueadas</summary>
+  <div class="tbl" style="margin-top:14px;">
     <table>
       <thead><tr><th>E-mail</th><th>Data/Hora</th><th>Tentativas</th><th></th></tr></thead>
       <tbody id="tAttempts"></tbody>
     </table>
   </div>
   <div class="pag" id="pagAttempts"></div>
-</div>
-
-<!-- All Uploads -->
-<div class="admin-section">
-  <h2>Todos os Uploads</h2>
-  <div class="add-row" style="margin-bottom:12px;">
-    <select id="filterEmail" onchange="filterUploads()" style="flex:1;">
-      <option value="">Todos os e-mails</option>
-    </select>
-    <select id="filterAccount" onchange="filterUploads()" style="flex:1;">
-      <option value="">Todas as contas</option>
-    </select>
-  </div>
-  <div class="tbl">
-    <table>
-      <thead><tr><th>Arquivo</th><th>E-mail</th><th>Conta</th><th class="r">Pedidos</th><th>Data</th><th></th></tr></thead>
-      <tbody id="tUploads"></tbody>
-    </table>
-  </div>
-  <div class="pag" id="pagUploads"></div>
-</div>
+</details>
 
 </div>
 
