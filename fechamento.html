@@ -139,6 +139,21 @@
 
 </div>
 
+<!-- Popup de export -->
+<div id="exportModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:360px;max-width:92vw;">
+    <h3 style="margin:0 0 16px;">Gerar relatório</h3>
+    <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Nome do creator</label>
+    <input type="text" id="expNome" placeholder="Ex: Malu &amp; Gabi" style="width:100%;margin-bottom:16px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+    <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Qtd. de creators <span style="color:var(--muted);">(divide a comissão)</span></label>
+    <input type="number" id="expQtd" min="1" step="1" value="1" style="width:100%;margin-bottom:20px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="del" onclick="fecharExportModal()">Cancelar</button>
+      <button class="btn-sm" onclick="confirmarExportModal()">Gerar</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

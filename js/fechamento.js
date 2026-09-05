@@ -581,133 +581,219 @@ function calcularFechamento() {
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-// ===== RELATÓRIO (PDF / imagem) — usado pelo export ad-hoc e pelos turnos salvos =====
-// d = { creator, periodo, turnoStr, comissao, liquidados, inelegiveis }
+// ===== RELATÓRIO (PDF / imagem) — Variação 1 com logo do tenant =====
+// d = { creator, periodo, turnoStr, comissao, liquidados, inelegiveis, qty }
+// qty = nº de creators; se > 1 divide a comissão e mostra total + p/ creator.
+
+function tenantLogo() { return (window.AGENCY && window.AGENCY.logo_url) || null; }
 
 function baixarPdf(d) {
   const creator = d.creator || '—';
+  const qty = (d.qty && d.qty > 1) ? d.qty : 1;
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const orange = hexToRgb(brandHex());
+  const logoUrl = tenantLogo();
 
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
-  doc.text(brandName(), 20, 24);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
-  doc.text('Fechamento de Comissão', 20, 31);
-  doc.setDrawColor(220); doc.line(20, 38, 190, 38);
+  const render = (img) => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
-  let y = 50;
-  const linha = (label, val) => {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(90);
-    doc.text(label, 20, y);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
-    doc.text(String(val), 62, y);
-    y += 9;
+    if (img) {
+      const h = 12, w = img.width * (h / img.height);
+      doc.addImage(logoUrl, 'PNG', 20, 16, w, h);
+    } else {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
+      doc.text(brandName(), 20, 25);
+    }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
+    doc.text('Fechamento de Comissão', 20, 37);
+    doc.setDrawColor(220); doc.line(20, 43, 190, 43);
+
+    let y = 55;
+    const linha = (label, val) => {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(90);
+      doc.text(label, 20, y);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(30);
+      doc.text(String(val), 190, y, { align: 'right' });
+      y += 9;
+    };
+    linha('Creator', creator);
+    linha('Período', d.periodo);
+    linha('Turno', d.turnoStr);
+
+    y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
+    if (qty > 1) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120);
+      doc.text('COMISSÃO TOTAL', 20, y);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(19); doc.setTextColor(60);
+      doc.text(fmtBRL(d.comissao), 20, y + 10); y += 21;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120);
+      doc.text('P/ CREATOR', 20, y);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
+      doc.text(fmtBRL(d.comissao / qty), 20, y + 14); y += 26;
+    } else {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
+      doc.text('COMISSÃO', 20, y);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
+      doc.text(fmtBRL(d.comissao), 20, y + 14); y += 28;
+    }
+
+    doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
+    linha('Pedidos pagos', d.liquidados);
+    linha('Pedidos inelegíveis', d.inelegiveis);
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
+
+    doc.save(`fechamento_${creator.replace(/[^\w-]+/g, '_')}.pdf`);
   };
-  linha('Creator:', creator);
-  linha('Período:', d.periodo);
-  linha('Turno:', d.turnoStr);
 
-  y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
-  doc.text('COMISSÃO', 20, y);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
-  doc.text(fmtBRL(d.comissao), 20, y + 14);
-  y += 28;
-
-  doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
-  linha('Pedidos pagos:', d.liquidados);
-  linha('Pedidos inelegíveis:', d.inelegiveis);
-
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
-  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
-
-  doc.save(`fechamento_${creator.replace(/[^\w-]+/g, '_')}.pdf`);
+  if (logoUrl) {
+    const img = new Image();
+    img.onload = () => render(img);
+    img.onerror = () => render(null);
+    img.src = logoUrl;
+  } else render(null);
 }
 
 function baixarImagem(d) {
   const creator = d.creator || '—';
+  const qty = (d.qty && d.qty > 1) ? d.qty : 1;
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const orange = brandHex();
-
-  const W = 1080, H = 1350;
+  const W = 1080;
   const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
+  canvas.width = W; canvas.height = 1500;
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = '#0f0f10'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#0f0f10'; ctx.fillRect(0, 0, W, 1500);
   ctx.fillStyle = orange; ctx.fillRect(0, 0, W, 14);
 
-  ctx.textAlign = 'left';
   const divider = yy => {
-    ctx.strokeStyle = '#2a2a2c'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#26262a'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(80, yy); ctx.lineTo(W - 80, yy); ctx.stroke();
   };
-  let y = 150;
-
-  ctx.fillStyle = orange; ctx.font = '800 88px Inter, Arial';
-  ctx.fillText(brandName(), 80, y);
-  y += 52;
-  ctx.fillStyle = '#8a8a8a'; ctx.font = '400 34px Inter, Arial';
-  ctx.fillText('Fechamento de Comissão', 82, y);
-  y += 60; divider(y);
-
-  const linha = (label, val) => {
-    y += 72;
-    ctx.fillStyle = '#8a8a8a'; ctx.font = '700 32px Inter, Arial';
-    ctx.fillText(label, 80, y);
-    ctx.fillStyle = '#f0f0f0'; ctx.font = '400 32px Inter, Arial';
-    ctx.fillText(String(val), 360, y);
+  const rowLR = (yy, label, val) => {
+    ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '600 32px Inter, Arial';
+    ctx.fillText(label, 80, yy);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f2f2f4'; ctx.font = '500 32px Inter, Arial';
+    ctx.fillText(val, W - 80, yy);
+    ctx.textAlign = 'left';
   };
-  linha('Creator', creator);
-  linha('Período', d.periodo);
-  linha('Turno', d.turnoStr);
 
-  y += 90; divider(y);
+  // Subtítulo (a logo é desenhada depois, no onload)
+  let y = 214;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '400 34px Inter, Arial';
+  ctx.fillText('Fechamento de Comissão', 80, y);
+  y += 44; divider(y);
+
+  y += 66; rowLR(y, 'Creator', creator);
+  y += 66; rowLR(y, 'Período', d.periodo);
+  y += 66; rowLR(y, 'Turno', d.turnoStr);
+  y += 40; divider(y);
+
   y += 66;
-  ctx.fillStyle = '#8a8a8a'; ctx.font = '600 30px Inter, Arial';
-  ctx.fillText('COMISSÃO', 80, y);
-  y += 104;
-  ctx.fillStyle = orange; ctx.font = '800 100px Inter, Arial';
-  ctx.fillText(fmtBRL(d.comissao), 80, y);
+  if (qty > 1) {
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillText('COMISSÃO TOTAL', 80, y);
+    y += 68;
+    ctx.fillStyle = '#f2f2f4'; ctx.font = '800 68px Inter, Arial';
+    ctx.fillText(fmtBRL(d.comissao), 80, y);
+    y += 58;
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillText('P/ CREATOR', 80, y);
+    y += 92;
+    ctx.fillStyle = orange; ctx.font = '800 96px Inter, Arial';
+    ctx.fillText(fmtBRL(d.comissao / qty), 80, y);
+  } else {
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillText('COMISSÃO', 80, y);
+    y += 96;
+    ctx.fillStyle = orange; ctx.font = '800 96px Inter, Arial';
+    ctx.fillText(fmtBRL(d.comissao), 80, y);
+  }
+  y += 44; divider(y);
 
-  y += 56; divider(y);
-  linha('Pedidos pagos', d.liquidados);
-  linha('Pedidos inelegíveis', d.inelegiveis);
+  y += 62; rowLR(y, 'Pedidos pagos', String(d.liquidados));
+  y += 66; rowLR(y, 'Pedidos inelegíveis', String(d.inelegiveis));
+  y += 58;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#55555c'; ctx.font = '400 24px Inter, Arial';
+  ctx.fillText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 80, y);
 
-  ctx.fillStyle = '#6a6a6a'; ctx.font = '400 24px Inter, Arial';
-  ctx.fillText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 80, H - 60);
+  const finalH = y + 44;
+  const exportar = () => {
+    const out = document.createElement('canvas');
+    out.width = W; out.height = finalH;
+    out.getContext('2d').drawImage(canvas, 0, 0);
+    out.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `fechamento_${creator.replace(/[^\w-]+/g, '_')}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
 
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `fechamento_${creator.replace(/[^\w-]+/g, '_')}.png`;
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  }, 'image/png');
+  const logoUrl = tenantLogo();
+  if (logoUrl) {
+    const img = new Image();
+    img.onload = () => {
+      const h = 60, w = img.width * (h / img.height);
+      ctx.drawImage(img, 80, 84, w, h);
+      exportar();
+    };
+    img.onerror = () => {
+      ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px Inter, Arial';
+      ctx.fillText(brandName(), 80, 150);
+      exportar();
+    };
+    img.src = logoUrl;
+  } else {
+    ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px Inter, Arial';
+    ctx.fillText(brandName(), 80, 150);
+    exportar();
+  }
 }
 
-// Monta os dados do relatório a partir do último cálculo, pedindo o nome.
-function dadosAdHoc() {
+// ===== POPUP DE EXPORT (nome + quantidade de creators) =====
+
+let _exportKind = null;
+
+function exportarImagem() { abrirExportModal('img'); }
+function exportarPDF() { abrirExportModal('pdf'); }
+
+function abrirExportModal(kind) {
   const msg = document.getElementById('fechMsg');
   if (!lastFechamento) {
     msg.className = 'msg msg-err';
     msg.textContent = 'Calcule o fechamento antes de exportar.';
-    return null;
+    return;
   }
-  const nome = prompt('Nome do creator para o relatório:', lastFechamento.creatorDefault || '');
-  if (nome === null) return null;
+  _exportKind = kind;
+  document.getElementById('expNome').value = lastFechamento.creatorDefault || '';
+  document.getElementById('expQtd').value = 1;
+  document.getElementById('exportModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('expNome').focus(), 30);
+}
+
+function fecharExportModal() {
+  document.getElementById('exportModal').style.display = 'none';
+}
+
+function confirmarExportModal() {
+  if (!lastFechamento) return;
+  const creator = (document.getElementById('expNome').value || '').trim() || '—';
+  let qty = parseInt(document.getElementById('expQtd').value, 10);
+  if (!qty || qty < 1) qty = 1;
+  fecharExportModal();
   const f = lastFechamento;
-  return {
-    creator: nome.trim() || '—',
+  const d = {
+    creator, qty,
     periodo: f.periodo, turnoStr: f.turnoStr,
     comissao: f.comissao, liquidados: f.liquidados, inelegiveis: f.inelegiveis
   };
+  if (_exportKind === 'pdf') baixarPdf(d); else baixarImagem(d);
 }
-
-function exportarPDF() { const d = dadosAdHoc(); if (d) baixarPdf(d); }
-function exportarImagem() { const d = dadosAdHoc(); if (d) baixarImagem(d); }
 
 // ===== TURNOS SALVOS =====
 
