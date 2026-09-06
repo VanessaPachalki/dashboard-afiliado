@@ -682,16 +682,16 @@ function baixarImagem(d) {
     ctx.beginPath(); ctx.moveTo(80, yy); ctx.lineTo(W - 80, yy); ctx.stroke();
   };
   const rowLR = (yy, label, val) => {
-    ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '600 32px Inter, Arial';
+    ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '600 32px system-ui, sans-serif';
     ctx.fillText(label, 80, yy);
-    ctx.textAlign = 'right'; ctx.fillStyle = '#f2f2f4'; ctx.font = '500 32px Inter, Arial';
+    ctx.textAlign = 'right'; ctx.fillStyle = '#f2f2f4'; ctx.font = '500 32px system-ui, sans-serif';
     ctx.fillText(val, W - 80, yy);
     ctx.textAlign = 'left';
   };
 
   // Subtítulo (a logo é desenhada depois, no onload)
   let y = 214;
-  ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '400 34px Inter, Arial';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#8a8a92'; ctx.font = '400 34px system-ui, sans-serif';
   ctx.fillText('Fechamento de Comissão', 80, y);
   y += 44; divider(y);
 
@@ -702,22 +702,22 @@ function baixarImagem(d) {
 
   y += 66;
   if (qty > 1) {
-    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px system-ui, sans-serif';
     ctx.fillText('COMISSÃO TOTAL', 80, y);
     y += 68;
-    ctx.fillStyle = '#f2f2f4'; ctx.font = '800 68px Inter, Arial';
+    ctx.fillStyle = '#f2f2f4'; ctx.font = '800 68px system-ui, sans-serif';
     ctx.fillText(fmtBRL(d.comissao), 80, y);
     y += 58;
-    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px system-ui, sans-serif';
     ctx.fillText('P/ CREATOR', 80, y);
     y += 92;
-    ctx.fillStyle = orange; ctx.font = '800 96px Inter, Arial';
+    ctx.fillStyle = orange; ctx.font = '800 96px system-ui, sans-serif';
     ctx.fillText(fmtBRL(d.comissao / qty), 80, y);
   } else {
-    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px Inter, Arial';
+    ctx.fillStyle = '#8a8a92'; ctx.font = '700 28px system-ui, sans-serif';
     ctx.fillText('COMISSÃO', 80, y);
     y += 96;
-    ctx.fillStyle = orange; ctx.font = '800 96px Inter, Arial';
+    ctx.fillStyle = orange; ctx.font = '800 96px system-ui, sans-serif';
     ctx.fillText(fmtBRL(d.comissao), 80, y);
   }
   y += 44; divider(y);
@@ -725,7 +725,7 @@ function baixarImagem(d) {
   y += 62; rowLR(y, 'Pedidos pagos', String(d.liquidados));
   y += 66; rowLR(y, 'Pedidos inelegíveis', String(d.inelegiveis));
   y += 58;
-  ctx.textAlign = 'left'; ctx.fillStyle = '#55555c'; ctx.font = '400 24px Inter, Arial';
+  ctx.textAlign = 'left'; ctx.fillStyle = '#55555c'; ctx.font = '400 24px system-ui, sans-serif';
   ctx.fillText(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 80, y);
 
   const finalH = y + 44;
@@ -751,13 +751,13 @@ function baixarImagem(d) {
       exportar();
     };
     img.onerror = () => {
-      ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px Inter, Arial';
+      ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px system-ui, sans-serif';
       ctx.fillText(brandName(), 80, 150);
       exportar();
     };
     img.src = logoUrl;
   } else {
-    ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px Inter, Arial';
+    ctx.textAlign = 'left'; ctx.fillStyle = orange; ctx.font = '900 76px system-ui, sans-serif';
     ctx.fillText(brandName(), 80, 150);
     exportar();
   }
