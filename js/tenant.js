@@ -113,12 +113,12 @@ function applyThemeMode(mode) {
 }
 
 function getThemeMode() {
-  return localStorage.getItem('spacehub_theme_mode') || 'dark';
+  return localStorage.getItem('spacehub_theme_mode') || 'light';
 }
 
 // Apply on load (synchronous — always set attribute explicitly)
 (function() {
-  var mode = localStorage.getItem('spacehub_theme_mode') || 'dark';
+  var mode = localStorage.getItem('spacehub_theme_mode') || 'light';
   var resolved = mode === 'auto'
     ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
     : mode;
