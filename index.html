@@ -31,6 +31,15 @@
         Entrar com Google
       </button>
 
+      <div style="display:flex;align-items:center;gap:10px;margin:18px 0 4px;">
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+        <span style="font-size:11px;color:var(--muted);">ou</span>
+        <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      <input type="email" id="loginEmail" placeholder="E-mail" autocomplete="username">
+      <input type="password" id="loginPass" placeholder="Senha" autocomplete="current-password" onkeydown="if(event.key==='Enter')handleEmailLogin()">
+      <button class="btn" onclick="handleEmailLogin()">Entrar</button>
+
       <div class="msg" id="msg"></div>
       <div style="margin-top:24px;font-size:11px;color:var(--muted);">
         Ao entrar, voce concorda com os<br>
@@ -58,6 +67,25 @@ async function handleGoogle() {
     msg.className = 'msg msg-err';
     msg.textContent = 'Erro ao conectar com Google: ' + error.message;
   }
+}
+
+// Login por e-mail/senha (para revisão do app e acessos sem Google)
+async function handleEmailLogin() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPass').value;
+  const msg = document.getElementById('msg');
+  if (!email || !password) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'Preencha e-mail e senha.';
+    return;
+  }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    msg.className = 'msg msg-err';
+    msg.textContent = 'E-mail ou senha inválidos.';
+    return;
+  }
+  window.location.reload(); // a checagem de sessão abaixo resolve o papel e redireciona
 }
 
 // Resolve tenant + check session
