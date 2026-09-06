@@ -15,7 +15,7 @@ const DIST = path.join(ROOT, 'dist');
 
 // Files to process
 const HTML_FILES = ['index.html', 'dashboard.html', 'upload.html', 'admin.html', 'fechamento.html', 'superadmin.html', 'settings.html', 'termos.html', 'privacidade.html'];
-const JS_FILES = ['supabase-config.js', 'tenant.js', 'auth.js', 'dashboard.js', 'upload.js', 'admin.js', 'fechamento.js', 'superadmin.js', 'settings.js'];
+const JS_FILES = ['supabase-config.js', 'tenant.js', 'auth.js', 'dashboard.js', 'upload.js', 'admin.js', 'fechamento.js', 'superadmin.js', 'settings.js', 'tiktok-config.js'];
 const CSS_FILES = ['style.css'];
 
 // Obfuscation config — high protection, good performance

@@ -42,6 +42,16 @@
 
 <div class="msg" id="uploadMsg" style="text-align:center;margin-top:12px;min-height:20px;"></div>
 
+<!-- Conectar TikTok (importar automático) -->
+<div class="card" style="margin-top:24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:220px;">
+    <strong style="font-size:15px;">Importar automático da TikTok</strong>
+    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Conecte sua conta e os dados do fechamento entram sozinhos — sem planilha.</div>
+    <div class="msg" id="tiktokMsg" style="margin-top:8px;min-height:0;"></div>
+  </div>
+  <button class="btn-sm" onclick="connectTiktok()">Conectar TikTok</button>
+</div>
+
 <!-- Upload list -->
 <div class="section" style="margin-top:32px;">
   <div class="stitle">Arquivos Enviados</div>
@@ -58,6 +68,7 @@
 <script src="js/supabase-config.js"></script>
 <script src="js/tenant.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/tiktok-config.js"></script>
 <script src="js/upload.js"></script>
 <script>
 (async () => {
@@ -65,6 +76,7 @@
   const session = await requireAuth();
   if (!session) return;
   await renderNav('upload');
+  showTiktokResult();
   await loadAccounts();
   await loadUploads();
 })();
