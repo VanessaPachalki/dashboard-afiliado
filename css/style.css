@@ -28,6 +28,8 @@
 [data-theme="light"] .info-tip:hover { background:rgba(0,0,0,0.1); border-color:rgba(0,0,0,0.15); }
 [data-theme="light"] .info-tip .tip-text { background:#fff; box-shadow:0 8px 24px rgba(0,0,0,0.12); }
 [data-theme="light"] .field select, [data-theme="light"] .field input { color-scheme:light; }
+/* Logo do tenant: no tema claro, deixa monocromática preta (o "branco" some no fundo claro) */
+[data-theme="light"] .brand img { filter:brightness(0); }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Inter','Segoe UI',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; letter-spacing:-0.01em; }
 
