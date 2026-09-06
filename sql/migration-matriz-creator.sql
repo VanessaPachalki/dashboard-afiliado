@@ -11,17 +11,14 @@
 --   - orders / uploads: já têm user_id (dono).
 --   - accounts / sellers / turnos: recebem owner_id.
 --
--- ⚠️ CLEAN SLATE autorizado: zera os dados atuais. Rodar em transação.
---    Executar SOMENTE no cutover, junto com o deploy do código da branch.
+-- MANTÉM os dados atuais (sem TRUNCATE). Consequência: as linhas antigas
+-- ficam com owner_id vazio → visíveis só pra matriz (legado). Dados novos
+-- nascem isolados por creator. Backfill de owner_id pode ser feito depois.
 -- ================================================
 
 begin;
 
--- 1) Clean slate (dados atuais serão descartados)
-truncate table public.turnos, public.sellers, public.orders, public.uploads, public.accounts
-  restart identity cascade;
-
--- 2) Creators convidados (a matriz libera por e-mail)
+-- 1) Creators convidados (a matriz libera por e-mail)
 create table if not exists public.creators (
   email text primary key,
   display_name text,
