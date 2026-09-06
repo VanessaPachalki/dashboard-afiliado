@@ -33,11 +33,19 @@ export default async function handler(req, res) {
       + '&grant_type=authorized_code';
     const tr = await fetch(tokenUrl);
     const tj = await tr.json();
+    if (tj && tj.code !== 0) console.error('token/get code:', tj.code, tj.message);
     const d = tj && tj.data;
     if (!d || !d.access_token) {
       console.error('token/get falhou:', JSON.stringify(tj));
       return back('error');
     }
+    // Identidade Creator = user_type 1 (não reusar token de seller em API de creator)
+    if (d.user_type !== undefined && Number(d.user_type) !== 1) {
+      console.error('user_type inesperado (esperado 1=Creator):', d.user_type, 'scopes:', d.granted_scopes);
+      return back('wrong_identity');
+    }
+    // Log dos scopes concedidos (creator pode conceder parcial → precisa do 1021508)
+    console.log('granted_scopes:', d.granted_scopes);
 
     const now = Date.now();
     const iso = (secs) => secs ? new Date(now + secs * 1000).toISOString() : null;

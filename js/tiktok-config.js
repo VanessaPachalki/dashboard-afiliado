@@ -54,7 +54,8 @@ function showTiktokResult() {
     connected: ['msg-ok', 'TikTok conectado! Seus dados vão importar automaticamente.'],
     denied: ['msg-err', 'Autorização cancelada.'],
     error: ['msg-err', 'Erro ao conectar. Tente de novo.'],
-    misconfig: ['msg-err', 'Integração ainda não configurada (env vars).']
+    misconfig: ['msg-err', 'Integração ainda não configurada (env vars).'],
+    wrong_identity: ['msg-err', 'Login não é de Creator. Entre com a conta de creator (não seller).']
   };
   const [cls, txt] = map[st] || ['msg-err', 'Falha na conexão.'];
   el.className = 'msg ' + cls;
