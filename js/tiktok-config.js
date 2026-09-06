@@ -21,6 +21,28 @@ async function connectTiktok() {
   window.location.href = tiktokCreatorAuthUrl(uid);
 }
 
+// Puxa os pedidos de afiliado da TikTok pro fechamento (via a Function de sync)
+async function sincronizarTiktok() {
+  const el = document.getElementById('tiktokMsg');
+  const uid = await myUid();
+  if (!uid) return;
+  if (el) { el.className = 'msg'; el.textContent = 'Sincronizando com a TikTok...'; }
+  try {
+    const r = await fetch(`/api/tiktok/sync?owner=${encodeURIComponent(uid)}`);
+    const j = await r.json();
+    if (!el) return;
+    if (j.ok) {
+      el.className = 'msg msg-ok';
+      el.textContent = `Importados ${j.imported} pedidos da TikTok.`;
+    } else {
+      el.className = 'msg msg-err';
+      el.textContent = 'Erro na sincronização: ' + (j.error || 'desconhecido');
+    }
+  } catch (e) {
+    if (el) { el.className = 'msg msg-err'; el.textContent = 'Falha ao sincronizar.'; }
+  }
+}
+
 // Mostra o resultado da conexão quando volta do callback (?tiktok=connected|denied|error)
 function showTiktokResult() {
   const params = new URLSearchParams(window.location.search);
