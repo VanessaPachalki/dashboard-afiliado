@@ -130,7 +130,7 @@ async function syncTiktokPartner() {
     if (msg) {
       if (j.ok) {
         msg.className = 'msg msg-ok';
-        msg.textContent = `Importados ${j.imported} itens de pedidos (${j.pages} página(s)).`;
+        msg.textContent = `Importados ${j.imported} itens de ${j.creators} creator(s). Já aparecem no Dashboard e no Fechamento.`;
       } else {
         msg.className = 'msg msg-err';
         msg.textContent = 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '');

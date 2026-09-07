@@ -101,6 +101,36 @@ async function ensureUpload(matrizUid) {
   return created && created[0] && created[0].id;
 }
 
+// pega o id da agência BRX (todos os dados são filtrados por agency_id)
+async function getAgencyId() {
+  const rows = await (await sb('agencies?slug=eq.brx&select=id&limit=1')).json();
+  return Array.isArray(rows) && rows[0] ? rows[0].id : null;
+}
+
+// resolve (ou cria) a conta virtual de um creator, pelo @username.
+// Cache em memória evita repetir query por página.
+function makeAccountResolver(matrizUid, agencyId) {
+  const cache = new Map();
+  return async function resolveAccount(username) {
+    const name = (username && String(username).trim()) || '(sem creator)';
+    if (cache.has(name)) return cache.get(name);
+    // procura existente (service role ignora RLS)
+    const q = `accounts?agency_id=eq.${agencyId}&name=eq.${encodeURIComponent(name)}&select=id&limit=1`;
+    const found = await (await sb(q)).json();
+    let id = Array.isArray(found) && found[0] ? found[0].id : null;
+    if (!id) {
+      const created = await (await sb('accounts', {
+        method: 'POST',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ name, owner_id: matrizUid, agency_id: agencyId, source: 'tiktok_partner' })
+      })).json();
+      id = Array.isArray(created) && created[0] ? created[0].id : null;
+    }
+    cache.set(name, id);
+    return id;
+  };
+}
+
 export default async function handler(req, res) {
   try {
     const matrizUid = req.query.owner;
@@ -119,9 +149,12 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
-    // 3) upload bucket
+    // 3) upload bucket + agência + resolvedor de conta por creator
     const uploadId = await ensureUpload(matrizUid);
     if (!uploadId) return res.status(500).json({ error: 'falha ao criar upload' });
+    const agencyId = await getAgencyId();
+    if (!agencyId) return res.status(500).json({ error: 'agência BRX não encontrada' });
+    const resolveAccount = makeAccountResolver(matrizUid, agencyId);
 
     // 4) janela de tempo (default últimos 60 dias)
     const nowSec = Math.floor(Date.now() / 1000);
@@ -133,6 +166,7 @@ export default async function handler(req, res) {
     let pageToken = '';
     let total = 0, pages = 0;
     let sample = null;
+    const creatorsSet = new Set();
     do {
       const query = {
         category_asset_cipher: part.category_asset_cipher,
@@ -146,6 +180,12 @@ export default async function handler(req, res) {
       const list = (data.data && data.data.orders) || [];
       if (!sample && list[0]) sample = list[0]; // 1º pedido cru pra conferência
       const rows = list.flatMap(o => mapCapOrderToRows(o, matrizUid, uploadId));
+      // atribui cada linha à conta do creator (por @username) + agência BRX
+      for (const r of rows) {
+        r.account_id = await resolveAccount(r.creator_username);
+        r.agency_id = agencyId;
+        creatorsSet.add(r.creator_username || '(sem creator)');
+      }
       if (rows.length) {
         const up = await sb('orders?on_conflict=user_id,tiktok_order_id,sku_id', {
           method: 'POST',
@@ -167,6 +207,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true, imported: total, pages,
+      creators: creatorsSet.size,
       window: { ge, lt, days },
       sample: sample ? { id: sample.id, status: sample.status, create_time: sample.create_time,
         skus_type: Array.isArray(sample.skus) ? 'array' : typeof sample.skus } : null
