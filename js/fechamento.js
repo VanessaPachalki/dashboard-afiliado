@@ -1210,7 +1210,23 @@ async function escalaCarregarPeriodo() {
   document.getElementById('escalaRange').textContent =
     `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
   if (box) box.style.display = '';
-  setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados.`);
+
+  // avisa quais dias do período NÃO têm dados no sistema
+  const present = new Set(escalaState.orders.map(o => o.order_date));
+  const missing = [];
+  const d = new Date(from + 'T12:00:00'), end = new Date(to + 'T12:00:00');
+  while (d <= end) {
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!present.has(iso)) missing.push(iso);
+    d.setDate(d.getDate() + 1);
+  }
+  if (missing.length) {
+    const fmtDay = s => { const [, m, dd] = s.split('-'); return `${dd}/${m}`; };
+    setEscalaMsg('err', `${escalaState.orders.length} pedidos carregados. ⚠ Sem dados dos dias: ${missing.map(fmtDay).join(', ')} — sincronize se precisar deles (Menu → Sincronização).`);
+  } else {
+    setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados — todos os dias do período têm dados.`);
+  }
+
   document.getElementById('escalaRows').innerHTML = '';
   escalaAddRow(mn, mx); // 1ª linha já cobrindo o período todo
 }
