@@ -97,6 +97,7 @@ async function renderNav(activePage) {
       <div class="nav-group-title">Gestão</div>
       ${link('admin.html', 'Creators', 'admin')}
       ${link('conta.html', 'Conta', 'conta')}
+      ${link('sincronizar.html', 'Sincronização', 'sincronizar')}
       ${link('settings.html', 'Config', 'settings')}
     </div>`;
   }

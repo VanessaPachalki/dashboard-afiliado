@@ -1107,7 +1107,7 @@ function setEscalaMsg(cls, txt) {
 }
 
 function wizardGo(n) {
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 2; i++) {
     const p = document.getElementById('wpanel' + i);
     if (p) p.style.display = i === n ? '' : 'none';
     const ws = document.getElementById('ws' + i);
@@ -1117,11 +1117,6 @@ function wizardGo(n) {
 }
 
 async function initFechamentoJornada() {
-  const role = await getUserRole();
-  if (role && role.is_matriz) {
-    const ib = document.getElementById('importBox');
-    if (ib) ib.style.display = '';
-  }
   wizardGo(1);
 }
 
@@ -1202,8 +1197,11 @@ async function escalaCarregarPeriodo() {
   escalaState = { accountId: accId, from, to, orders: data || [], results: [], pct: 100 };
   const box = document.getElementById('escalaBox');
   if (!escalaState.orders.length) {
-    setEscalaMsg('err', 'Nenhum pedido (Live) nesse período. Importe no Passo 1.');
     if (box) box.style.display = 'none';
+    setEscalaMsg('err', 'Ainda não há pedidos desse período no sistema.');
+    if (confirm('Ainda não há dados desse período no sistema.\n\nIr para a Sincronização para importar da TikTok?')) {
+      window.location.href = 'sincronizar.html';
+    }
     return;
   }
   let mn = null, mx = null;
@@ -1284,7 +1282,7 @@ function escalaCalcAll() {
   });
   escalaState.pct = pct;
   renderEscalaResults();
-  wizardGo(3);
+  wizardGo(2);
 }
 
 function renderEscalaResults() {

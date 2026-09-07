@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Sincronização</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Sincronização</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:1000px;">
+
+<div class="admin-section">
+  <h2>Sincronização de pedidos (TikTok)</h2>
+  <p style="color:var(--muted);font-size:14px;margin:0 0 14px;">
+    Aqui os pedidos entram no sistema. Dia com pedidos <strong>pendentes</strong> ainda vai mudar (as vendas liquidam
+    depois) — vale re-sincronizar. Dia <strong>final</strong> (0 pendentes) já está fechado. Re-sincronizar é seguro:
+    atualiza, não duplica. A conexão com a TikTok fica em <a href="conta.html" style="color:var(--orange);">Conta</a>.
+  </p>
+
+  <!-- Importar -->
+  <div class="card" style="margin-bottom:18px;">
+    <strong style="font-size:13px;">Importar / atualizar da TikTok</strong>
+    <div class="add-row" style="align-items:flex-end;gap:10px;margin-top:10px;">
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De (dia)
+        <input type="date" id="impFrom" class="btn-sm" style="max-width:160px;"></label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até (dia)
+        <input type="date" id="impTo" class="btn-sm" style="max-width:160px;"></label>
+      <button class="btn-primary" id="impBtn" onclick="importDays()">Importar / atualizar</button>
+    </div>
+    <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">Importe dias inteiros. Deixe em branco para o último 1 dia.</p>
+    <div class="msg" id="impMsg" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- Frescor -->
+  <div class="add-row" style="align-items:flex-end;gap:10px;">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
+      <input type="date" id="freshFrom" class="btn-sm" style="max-width:160px;"></label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
+      <input type="date" id="freshTo" class="btn-sm" style="max-width:160px;"></label>
+    <button class="btn-ghost" onclick="loadFreshness()">Ver dias importados</button>
+  </div>
+  <div id="freshList" style="margin-top:16px;"></div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script>
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+  const role = await getUserRole();
+  if (!role?.is_matriz) { window.location.href = 'dashboard.html'; return; }
+  await renderNav('sincronizar');
+})();
+
+async function loadFreshness() {
+  const from = document.getElementById('freshFrom').value;
+  const to = document.getElementById('freshTo').value;
+  const el = document.getElementById('freshList');
+  if (!from || !to) { el.innerHTML = '<div class="msg msg-err">Selecione De e Até.</div>'; return; }
+  el.innerHTML = '<div class="msg">Carregando...</div>';
+  const { data, error } = await sb.rpc('fech_days', { p_from: from, p_to: to });
+  if (error) { el.innerHTML = `<div class="msg msg-err">Erro: ${error.message} (rodou a migration fech-days-summary.sql?)</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div class="msg">Nenhum pedido nesse período. Importe acima.</div>'; return; }
+  const fmtDay = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+  el.innerHTML = `<table class="freshness"><thead><tr><th>Dia</th><th class="r">Pedidos</th><th>Status</th></tr></thead><tbody>` +
+    data.map(r => {
+      const pend = Number(r.pendentes);
+      const badge = pend > 0
+        ? `<span class="badge badge-pend">⟳ ${pend.toLocaleString('pt-BR')} pendentes — vale atualizar</span>`
+        : `<span class="badge badge-final">✓ Final</span>`;
+      return `<tr><td>${fmtDay(r.order_date)}</td><td class="r">${Number(r.total).toLocaleString('pt-BR')}</td><td>${badge}</td></tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+async function importDays() {
+  const msg = document.getElementById('impMsg');
+  const btn = document.getElementById('impBtn');
+  const from = document.getElementById('impFrom').value;
+  const to = document.getElementById('impTo').value;
+  const uid = await myUid();
+  if (!uid) return;
+  let ge, lt;
+  if (from) {
+    ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
+    const ed = to || from;
+    lt = Math.floor(new Date(ed + 'T00:00:00-03:00').getTime() / 1000) + 86400;
+  } else { const now = Math.floor(Date.now() / 1000); ge = now - 86400; lt = now; }
+  const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
+  if (btn) btn.disabled = true;
+  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
+  set('', 'Importando...');
+  let pt = null, ci = null, ep = null, grand = 0, b = 0, td = null;
+  try {
+    while (b < 1000) {
+      let url = `/api/tiktok/partner-sync?${base}`;
+      if (pt) url += `&page_token=${encodeURIComponent(pt)}&cipher=${encodeURIComponent(ci)}&endpoint=${encodeURIComponent(ep)}`;
+      const j = await (await fetch(url)).json();
+      if (!j.ok) { set('msg-err', 'Erro: ' + (j.message || j.error || '') + (j.code ? ` [${j.code}]` : '')); return; }
+      grand += j.imported || 0; ci = j.cipher || ci; ep = j.endpoint || ep;
+      if (j.total_disponivel != null) td = j.total_disponivel; b++;
+      set('', `Importando... ${grand.toLocaleString('pt-BR')}${td ? ' de ~' + td.toLocaleString('pt-BR') : ''} (lote ${b})`);
+      if (j.done || !j.next_page_token) break;
+      pt = j.next_page_token;
+    }
+    set('msg-ok', `Pronto! ${grand.toLocaleString('pt-BR')} pedidos. Clique em "Ver dias importados" pra conferir.`);
+  } catch (e) { set('msg-err', `Parou após ${grand.toLocaleString('pt-BR')} pedidos. Clique de novo pra continuar.`); }
+  finally { if (btn) btn.disabled = false; }
+}
+</script>
+</body>
+</html>

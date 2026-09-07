@@ -18,50 +18,14 @@
 
 <!-- Stepper -->
 <div class="wizard-steps">
-  <div class="wstep active" id="ws1" onclick="wizardGo(1)"><span class="wnum">1</span> Dados</div>
-  <div class="wstep" id="ws2" onclick="wizardGo(2)"><span class="wnum">2</span> Escala do dia</div>
-  <div class="wstep" id="ws3" onclick="wizardGo(3)"><span class="wnum">3</span> Relatórios</div>
+  <div class="wstep active" id="ws1" onclick="wizardGo(1)"><span class="wnum">1</span> Escala do dia</div>
+  <div class="wstep" id="ws2" onclick="wizardGo(2)"><span class="wnum">2</span> Relatórios</div>
 </div>
 
-<!-- ===== PASSO 1: DADOS ===== -->
+<!-- ===== PASSO 1: ESCALA ===== -->
 <div class="wpanel" id="wpanel1">
   <div class="admin-section">
-    <h2>1. Dados dos pedidos</h2>
-    <p style="color:var(--muted);font-size:14px;margin:0 0 14px;">
-      Veja quais dias já estão no sistema. Dia com pedidos <strong>pendentes</strong> ainda vai mudar (as vendas liquidam depois) — vale
-      re-sincronizar. Dia <strong>final</strong> (0 pendentes) pode seguir direto. Re-sincronizar é seguro: atualiza, não duplica.
-    </p>
-    <div class="add-row" style="align-items:flex-end;gap:10px;">
-      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
-        <input type="date" id="freshFrom" class="btn-sm" style="max-width:160px;"></label>
-      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
-        <input type="date" id="freshTo" class="btn-sm" style="max-width:160px;"></label>
-      <button class="btn-ghost" onclick="loadFreshness()">Ver dias</button>
-    </div>
-
-    <!-- Importar (só matriz) -->
-    <div id="importBox" class="card" style="display:none;margin-top:16px;">
-      <strong style="font-size:13px;">Importar / atualizar da TikTok</strong>
-      <div class="add-row" style="align-items:flex-end;gap:10px;margin-top:10px;">
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
-          <input type="date" id="impFrom" class="btn-sm" style="max-width:160px;"></label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
-          <input type="date" id="impTo" class="btn-sm" style="max-width:160px;"></label>
-        <button class="btn-primary" id="impBtn" onclick="importDays()">Importar / atualizar</button>
-      </div>
-      <div class="msg" id="impMsg" style="margin-top:8px;"></div>
-    </div>
-
-    <div id="freshList" style="margin-top:16px;"></div>
-
-    <div class="wnav"><button class="btn-primary" onclick="wizardGo(2)">Continuar →</button></div>
-  </div>
-</div>
-
-<!-- ===== PASSO 2: ESCALA ===== -->
-<div class="wpanel" id="wpanel2" style="display:none;">
-  <div class="admin-section">
-    <h2>2. Operação de live</h2>
+    <h2>Operação de live</h2>
     <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
       Escolha o <strong>Creator Host</strong> (o perfil onde a live aconteceu) e o período — a live pode durar
       vários dias. Depois lance os responsáveis por turno, cada um com data e hora de início e fim.
@@ -104,7 +68,6 @@
       <div style="margin-top:12px;"><button class="btn-ghost" onclick="escalaAddRow()">+ Adicionar turno</button></div>
       <div id="escalaConflito" style="margin-top:12px;"></div>
       <div class="wnav">
-        <button class="btn-ghost" onclick="wizardGo(1)">← Voltar</button>
         <button class="btn-primary" onclick="escalaCalcAll()">Calcular tudo →</button>
       </div>
     </div>
@@ -112,11 +75,11 @@
   </div>
 </div>
 
-<!-- ===== PASSO 3: RELATÓRIOS ===== -->
-<div class="wpanel" id="wpanel3" style="display:none;">
+<!-- ===== PASSO 2: RELATÓRIOS ===== -->
+<div class="wpanel" id="wpanel2" style="display:none;">
   <div class="admin-section">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-      <h2 style="margin:0;">3. Resultado & Relatórios</h2>
+      <h2 style="margin:0;">Resultado & Relatórios</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn-ghost" onclick="gerarTodos('img')">Baixar imagens</button>
         <button class="btn-ghost" onclick="gerarTodos('pdf')">Baixar PDFs</button>
@@ -127,7 +90,7 @@
     <div id="escalaConflito2"></div>
     <div id="escalaResults"></div>
     <div id="escalaSaveMsg" class="msg" style="margin-top:10px;"></div>
-    <div class="wnav"><button class="btn-ghost" onclick="wizardGo(2)">← Editar escala</button></div>
+    <div class="wnav"><button class="btn-ghost" onclick="wizardGo(1)">← Editar escala</button></div>
   </div>
 </div>
 
