@@ -171,6 +171,19 @@ async function ensureUpload(matrizUid, agencyId) {
   return id ? { id } : { error: `uploads insert sem id: ${txt}` };
 }
 
+// lista os category_assets (cada categoria tem seu cipher + mercado)
+async function getCategoryAssets(accessToken) {
+  const path = '/authorization/202405/category_assets';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
+  q.sign = signRequest(path, q, '', process.env.TIKTOK_APP_SECRET);
+  const qs = Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const caj = await (await fetch(`${API_HOST}${path}?${qs}`, {
+    headers: { 'content-type': 'application/json', 'x-tts-access-token': accessToken }
+  })).json();
+  return (caj && caj.data && caj.data.category_assets) || [];
+}
+
 // pega o id da agência BRX (todos os dados são filtrados por agency_id)
 async function getAgencyId() {
   const rows = await (await sb('agencies?slug=eq.brx&select=id&limit=1')).json();
@@ -250,30 +263,46 @@ export default async function handler(req, res) {
     const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
     const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
 
-    // 4.1) escolhe o endpoint: tenta CAP; se faltar escopo (105005), cai pro TAP.
-    let orderPath = CAP_ORDER_PATH;
-    let endpoint = 'cap';
-    {
-      const probe = await signedPost(CAP_ORDER_PATH,
-        { category_asset_cipher: part.category_asset_cipher, page_size: '1' },
-        { create_time_ge: ge, create_time_lt: lt }, accessToken);
-      if (probe.code === 105005) {
-        const probeTap = await signedPost(TAP_ORDER_PATH,
-          { category_asset_cipher: part.category_asset_cipher, page_size: '1' },
+    // 4.1) descobre a categoria/cipher certa + o endpoint que funciona.
+    // Cada categoria tem seu cipher; o de pedidos de afiliado é o de
+    // "Affiliate Management"/creators — não o [0] (que era "Connectors").
+    const assets = (await getCategoryAssets(accessToken))
+      .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
+    const PRIORITY = [
+      'Affiliate Management', 'Seller and Scalable Creator Match-Up',
+      'Creator collaborations', 'Creator Management', 'Mass Recruiting', 'Mass Tutoring'
+    ];
+    const nameOf = a => (a.category && a.category.name) || '';
+    // ordena: candidatos de afiliado primeiro (na ordem), depois o resto.
+    // e coloca o cipher já salvo na frente (fast path em syncs repetidos).
+    const ordered = [
+      ...(part.category_asset_cipher ? assets.filter(a => a.cipher === part.category_asset_cipher) : []),
+      ...PRIORITY.map(n => assets.find(a => nameOf(a) === n)).filter(Boolean),
+      ...assets.filter(a => !PRIORITY.includes(nameOf(a)))
+    ].filter((a, i, arr) => arr.findIndex(x => x.cipher === a.cipher) === i);
+
+    let orderPath = null, endpoint = null, cipher = null, winCategory = null;
+    const tried = [];
+    for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
+      for (const a of ordered) {
+        const probe = await signedPost(ep.path,
+          { category_asset_cipher: a.cipher, page_size: '1' },
           { create_time_ge: ge, create_time_lt: lt }, accessToken);
-        if (probeTap.code && probeTap.code !== 0) {
-          return res.status(502).json({
-            error: 'sem escopo pros dois endpoints de pedidos',
-            cap: { code: 105005, message: probe.message },
-            tap: { code: probeTap.code, message: probeTap.message },
-            hint: 'ative "Read CAP earnings order" (ou o escopo de TAP orders), aprove e reautorize',
-            request_id: probeTap.request_id
-          });
-        }
-        orderPath = TAP_ORDER_PATH; endpoint = 'tap';
-      } else if (probe.code && probe.code !== 0) {
-        return res.status(502).json({ error: 'tiktok api', code: probe.code, message: probe.message, request_id: probe.request_id });
+        tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, message: probe.message });
+        if (!probe.code || probe.code === 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); break; }
+        if (probe.code === 105005) break; // sem escopo nesse endpoint — pula pro próximo endpoint
       }
+      if (cipher) break;
+    }
+    if (!cipher) {
+      return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried });
+    }
+    // salva o cipher vencedor pra acelerar as próximas sincronizações
+    if (cipher !== part.category_asset_cipher) {
+      await sb('tiktok_partner?id=eq.1', {
+        method: 'PATCH',
+        body: JSON.stringify({ category_asset_cipher: cipher, updated_at: new Date().toISOString() })
+      });
     }
 
     // 5) paginação
@@ -283,7 +312,7 @@ export default async function handler(req, res) {
     const creatorsSet = new Set();
     do {
       const query = {
-        category_asset_cipher: part.category_asset_cipher,
+        category_asset_cipher: cipher,
         page_size: '50',
         ...(pageToken ? { page_token: pageToken } : {})
       };
@@ -320,7 +349,7 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({
-      ok: true, imported: total, pages, endpoint,
+      ok: true, imported: total, pages, endpoint, category: winCategory,
       creators: creatorsSet.size,
       window: { ge, lt, days },
       sample: sample ? { id: sample.id, status: sample.status, create_time: sample.create_time,
