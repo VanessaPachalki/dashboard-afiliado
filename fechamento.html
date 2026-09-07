@@ -42,11 +42,14 @@
     <div class="msg" id="escalaMsg" style="margin:10px 0;"></div>
 
     <div id="escalaBox" style="display:none;">
-      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:16px 0 10px;">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:16px 0 12px;">
         <strong style="font-size:13px;">Turnos (responsáveis)</strong>
-        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;">% de repasse ao creator
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--orange-soft);border:1.5px solid var(--orange);border-radius:12px;padding:7px 14px;">
+          <span style="font-size:12px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">% de repasse ao creator</span>
           <input type="text" id="escalaPct" inputmode="decimal" value="100"
-            style="width:70px;padding:6px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;"></label>
+            style="width:58px;padding:5px 8px;border-radius:8px;border:1.5px solid var(--orange);background:var(--bg);color:var(--orange);font-size:16px;font-weight:800;text-align:center;">
+          <span style="font-size:16px;color:var(--orange);font-weight:800;">%</span>
+        </div>
       </div>
       <span id="escalaRange" style="font-size:11px;color:var(--muted);display:block;margin-bottom:10px;"></span>
       <div style="overflow-x:auto;">
@@ -102,6 +105,22 @@
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeDataModal()">Ajustar período</button>
       <a class="btn-primary" id="dataModalSync" href="sincronizar.html">Ir para Sincronização →</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: salvar fechamento da live -->
+<div id="saveModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card" style="text-align:left;max-width:460px;">
+    <h3 style="text-align:center;margin:0 0 14px;">Salvar fechamento da live</h3>
+    <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Nome da live</label>
+    <input id="saveLiveName" placeholder="Ex: Live Dia das Mães"
+      style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
+    <div id="saveMeta" style="font-size:12px;color:var(--muted);margin:8px 0 0;"></div>
+    <div id="saveConflito" style="margin-top:12px;"></div>
+    <div class="modal-actions" style="justify-content:flex-end;margin-top:18px;">
+      <button class="btn-ghost" onclick="closeSaveModal()">Cancelar</button>
+      <button class="btn-primary" id="saveLiveBtn" onclick="confirmSaveLive()">Salvar</button>
     </div>
   </div>
 </div>

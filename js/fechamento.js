@@ -1103,7 +1103,11 @@ let escalaState = { orders: [], results: [], pct: 100 };
 
 function setEscalaMsg(cls, txt) {
   const m = document.getElementById('escalaMsg');
-  if (m) { m.className = 'msg' + (cls ? ' msg-' + cls : ''); m.textContent = txt; }
+  if (m) m.textContent = ''; // não usa mais inline — vira toast
+  if (!txt) return;
+  if (cls === 'err') toast('err', txt);
+  else if (cls === 'ok') toast('ok', txt);
+  // cls '' (ex: "Carregando...") é transitório, ignora
 }
 
 function sbBanner(type, icon, text) {
@@ -1412,18 +1416,57 @@ async function gerarTodos(kind) {
   }
 }
 
-async function salvarEscala() {
-  const msg = document.getElementById('escalaSaveMsg');
-  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
-  const rows = escalaState.results || [];
-  if (!rows.length) return set('msg-err', 'Calcule a escala primeiro.');
+// abre o modal de salvar (pede nome da live)
+let _conflictIds = [];
+function salvarEscala() {
+  if (!(escalaState.results || []).length) { toast('err', 'Calcule a escala primeiro.'); return; }
+  const host = (document.getElementById('fechAccountSearch') || {}).value || '';
+  const nome = document.getElementById('saveLiveName');
+  const [y, mo, dia] = (escalaState.liveIni || '').slice(0, 10).split('-');
+  if (nome && !nome.value) nome.value = `Live ${host} ${dia || ''}/${mo || ''}`.trim();
+  document.getElementById('saveMeta').textContent =
+    `Host: ${host} · ${fmtDT(escalaState.liveIni)} → ${fmtDT(escalaState.liveFim)} · ${escalaState.results.length} turno(s)`;
+  document.getElementById('saveConflito').innerHTML = '';
+  document.getElementById('saveModal').style.display = 'flex';
+  setTimeout(() => nome && nome.focus(), 30);
+}
+function closeSaveModal() { document.getElementById('saveModal').style.display = 'none'; }
+
+async function confirmSaveLive(force) {
+  const name = (document.getElementById('saveLiveName').value || '').trim();
+  const conf = document.getElementById('saveConflito');
+  if (!name) { conf.innerHTML = sbBanner('err', '⚠', 'Dê um nome pra live.'); return; }
+  const s = escalaState;
+  if (!force) {
+    // conflito: mesmo Creator Host + sobreposição de horário (uma conta não tem 2 lives ao mesmo tempo)
+    const { data: conflicts } = await sb.from('lives').select('id,name,start_dt,end_dt')
+      .eq('account_id', s.accountId).lt('start_dt', s.liveFim).gt('end_dt', s.liveIni);
+    if (conflicts && conflicts.length) {
+      _conflictIds = conflicts.map(c => c.id);
+      conf.innerHTML = sbBanner('err', '⚠',
+        `Esse Creator Host já tem live salva nesse horário: ${conflicts.map(c => `"${esc(c.name)}" (${fmtDT(c.start_dt)}→${fmtDT(c.end_dt)})`).join(', ')}.`)
+        + `<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end;">
+             <button class="btn-ghost" onclick="closeSaveModal()">Cancelar e ajustar horários</button>
+             <button class="btn-primary" onclick="excluirEConfirmar()">Excluir a existente e salvar</button>
+           </div>`;
+      return;
+    }
+  }
+  await doSaveLive(name);
+}
+async function excluirEConfirmar() {
+  if (_conflictIds.length) await sb.from('lives').delete().in('id', _conflictIds);
+  _conflictIds = [];
+  confirmSaveLive(true);
+}
+async function doSaveLive(name) {
+  const s = escalaState;
   const uid = await myUid();
-  const recs = rows.map(r => ({
-    agency_id: agencyId(), owner_id: uid, account_id: escalaState.accountId, seller_id: null,
-    creator_name: r.nome, start_dt: r.ini, end_dt: r.fim,
-    comissao: r.pagar, liquidados: r.liquidados, inelegiveis: r.inelegiveis, qty: r.qtd
-  }));
-  const { error } = await sb.from('turnos').insert(recs);
-  if (error) return set('msg-err', 'Erro ao salvar: ' + error.message);
-  set('msg-ok', `${recs.length} turno(s) salvos.`);
+  const { error } = await sb.from('lives').insert({
+    agency_id: agencyId(), owner_id: uid, account_id: s.accountId,
+    name, start_dt: s.liveIni, end_dt: s.liveFim, pct: s.pct, turnos: s.results
+  });
+  if (error) { document.getElementById('saveConflito').innerHTML = sbBanner('err', '⚠', 'Erro ao salvar: ' + error.message); return; }
+  closeSaveModal();
+  toast('ok', `Fechamento "${name}" salvo.`);
 }

@@ -112,7 +112,6 @@ async function loadSlider() {
     }
     return `<div class="mini-month"><div class="mm-title">${mn[m]} ${y}</div><div class="mm-grid">${cells}</div></div>`;
   }).join('');
-  slider.scrollLeft = slider.scrollWidth; // mostra os meses mais recentes
   calMsg.className = 'msg'; calMsg.textContent = '';
   if (error) { calMsg.className = 'msg msg-err'; calMsg.textContent = `Erro ao carregar dias: ${error.message} (rodou a migration fech-days-summary.sql?)`; }
 }

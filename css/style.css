@@ -300,6 +300,15 @@ body.has-nav .nav-footer .logout:hover { color:var(--orange); background:var(--c
 .modal-day { background:var(--orange-soft); color:var(--orange); padding:4px 12px; border-radius:20px; font-size:13px; font-weight:700; }
 .modal-actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
 .modal-actions .btn-primary, .modal-actions .btn-ghost { text-decoration:none; display:inline-block; }
+/* toast (notificações push-up) */
+.toast-wrap { position:fixed; top:20px; right:20px; z-index:3000; display:flex; flex-direction:column; gap:10px; }
+.toast { display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:12px; font-size:13px; font-weight:600; box-shadow:0 12px 32px rgba(0,0,0,0.2); background:var(--card); border:1px solid var(--border); min-width:240px; max-width:380px; animation:toastIn 0.2s ease-out; color:var(--text); }
+@keyframes toastIn { from { transform:translateX(24px); opacity:0; } to { transform:translateX(0); opacity:1; } }
+.toast .t-ico { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; color:#fff; font-weight:700; }
+.toast.t-ok { border-color:rgba(60,179,113,0.45); } .toast.t-ok .t-ico { background:var(--green); }
+.toast.t-err { border-color:rgba(217,83,79,0.45); } .toast.t-err .t-ico { background:var(--red); }
+.toast.t-warn { border-color:var(--orange); } .toast.t-warn .t-ico { background:var(--orange); }
+
 /* banners de status (cobertura da escala) */
 .status-banner { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:12px; font-size:13px; font-weight:600; margin-bottom:8px; }
 .status-banner .sb-icon { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
@@ -331,12 +340,12 @@ body.has-nav .nav-footer .logout:hover { color:var(--orange); background:var(--c
 .cal-range-btn { padding:6px 14px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; }
 .cal-range-btn:hover { border-color:var(--orange); color:var(--text); }
 .cal-range-btn.active { background:var(--orange); border-color:var(--orange); color:#fff; }
-.cal-slider { display:flex; gap:18px; overflow-x:auto; padding-bottom:10px; scroll-snap-type:x proximity; }
-.mini-month { min-width:calc((100% - 36px)/3); flex-shrink:0; scroll-snap-align:start; }
-.mm-title { text-align:center; font-size:12px; font-weight:700; text-transform:capitalize; margin-bottom:8px; color:var(--text); }
-.mm-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-.mm-wd { text-align:center; font-size:8px; color:var(--muted); font-weight:700; }
-.mm-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:10px; border-radius:5px; color:var(--muted); }
+.cal-slider { display:grid; grid-template-columns:repeat(3,1fr); gap:14px 18px; }
+.mini-month { min-width:0; }
+.mm-title { text-align:center; font-size:12px; font-weight:700; text-transform:capitalize; margin-bottom:6px; color:var(--text); }
+.mm-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.mm-wd { text-align:center; font-size:7px; color:var(--muted); font-weight:700; }
+.mm-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:9px; border-radius:4px; color:var(--muted); }
 .mm-day.has { cursor:pointer; font-weight:700; }
 .mm-day.final { background:rgba(60,179,113,0.16); color:var(--green); }
 .mm-day.pend { background:var(--orange-soft); color:var(--orange); }

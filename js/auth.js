@@ -67,6 +67,20 @@ async function logout() {
   window.location.href = 'index.html';
 }
 
+// Toast (notificação push-up) — global
+function toast(type, msg, ms) {
+  let wrap = document.getElementById('toastWrap');
+  if (!wrap) { wrap = document.createElement('div'); wrap.id = 'toastWrap'; wrap.className = 'toast-wrap'; document.body.appendChild(wrap); }
+  const t = type === 'ok' ? 'ok' : type === 'warn' ? 'warn' : 'err';
+  const el = document.createElement('div');
+  el.className = 'toast t-' + t;
+  const i = document.createElement('span'); i.className = 't-ico'; i.textContent = t === 'ok' ? '✓' : t === 'warn' ? '!' : '⚠';
+  const s = document.createElement('span'); s.textContent = msg;
+  el.appendChild(i); el.appendChild(s);
+  wrap.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity 0.3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, ms || 3800);
+}
+
 // Render do menu lateral (agrupado) com info do usuário
 async function renderNav(activePage) {
   const session = await getSession();
