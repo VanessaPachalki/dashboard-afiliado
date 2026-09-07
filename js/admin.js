@@ -8,6 +8,86 @@ function fmtBRL(v) {
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// ===== Auxiliares (cadastro com dados de pagamento) =====
+let _aux = [];
+async function loadAuxiliares() {
+  let q = sb.from('auxiliares').select('*').order('name');
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { data, error } = await q;
+  if (error) { const el = document.getElementById('auxList'); if (el) el.innerHTML = `<div class="msg msg-err">Erro ao carregar (rodou equipe.sql?): ${esc(error.message)}</div>`; return; }
+  _aux = data || [];
+  renderAuxiliares();
+}
+function renderAuxiliares() {
+  const el = document.getElementById('auxList');
+  if (!el) return;
+  if (!_aux.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Nenhum auxiliar cadastrado ainda.</div>'; return; }
+  el.innerHTML = _aux.map(a => `
+    <div class="card" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px;">
+      <div style="font-size:13px;min-width:0;">
+        <strong style="color:var(--text);">${esc(a.name)}</strong>${a.email ? `<span style="color:var(--muted);"> · ${esc(a.email)}</span>` : ''}
+        <div style="color:var(--muted);margin-top:4px;">
+          ${a.pix_key ? `PIX${a.pix_type ? ' (' + esc(a.pix_type) + ')' : ''}: <strong style="color:var(--text);">${esc(a.pix_key)}</strong>` : '<span style="opacity:.7;">sem PIX</span>'}${a.bank_name ? ` · ${esc(a.bank_name)} ag ${esc(a.bank_agency || '-')} cc ${esc(a.bank_account || '-')}` : ''}${a.phone ? ` · ${esc(a.phone)}` : ''}
+        </div>
+        ${a.notes ? `<div style="color:var(--muted);margin-top:2px;font-style:italic;">${esc(a.notes)}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn-sm" onclick="editAuxiliar('${a.id}')">Editar</button>
+        <button class="btn-sm" style="color:var(--red);border-color:var(--red);background:transparent;" onclick="removeAuxiliar('${a.id}')">Excluir</button>
+      </div>
+    </div>`).join('');
+}
+function _auxVal(id) { const e = document.getElementById(id); return e ? e.value.trim() : ''; }
+function resetAuxForm() {
+  ['auxId', 'auxNome', 'auxEmail', 'auxTel', 'auxPix', 'auxBank', 'auxAg', 'auxConta', 'auxObs'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const p = document.getElementById('auxPixType'); if (p) p.value = '';
+  const m = document.getElementById('auxMsg'); if (m) { m.className = 'msg'; m.textContent = ''; }
+}
+async function saveAuxiliar() {
+  const msg = document.getElementById('auxMsg');
+  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
+  const name = _auxVal('auxNome');
+  if (!name) return set('msg-err', 'Nome é obrigatório.');
+  const row = {
+    name,
+    email: _auxVal('auxEmail') || null,
+    phone: _auxVal('auxTel') || null,
+    pix_type: (document.getElementById('auxPixType') || {}).value || null,
+    pix_key: _auxVal('auxPix') || null,
+    bank_name: _auxVal('auxBank') || null,
+    bank_agency: _auxVal('auxAg') || null,
+    bank_account: _auxVal('auxConta') || null,
+    notes: _auxVal('auxObs') || null,
+    agency_id: agencyId() || null,
+    updated_at: new Date().toISOString()
+  };
+  const id = document.getElementById('auxId').value;
+  const { error } = id
+    ? await sb.from('auxiliares').update(row).eq('id', id)
+    : await sb.from('auxiliares').insert(row);
+  if (error) return set('msg-err', 'Erro: ' + error.message);
+  set('msg-ok', id ? 'Auxiliar atualizado.' : 'Auxiliar cadastrado.');
+  resetAuxForm();
+  loadAuxiliares();
+}
+function editAuxiliar(id) {
+  const a = _aux.find(x => x.id === id); if (!a) return;
+  const put = (elId, v) => { const e = document.getElementById(elId); if (e) e.value = v || ''; };
+  put('auxId', a.id); put('auxNome', a.name); put('auxEmail', a.email); put('auxTel', a.phone);
+  put('auxPix', a.pix_key); put('auxBank', a.bank_name); put('auxAg', a.bank_agency); put('auxConta', a.bank_account); put('auxObs', a.notes);
+  const p = document.getElementById('auxPixType'); if (p) p.value = a.pix_type || '';
+  document.getElementById('auxNome').focus();
+  document.getElementById('auxNome').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+async function removeAuxiliar(id) {
+  const a = _aux.find(x => x.id === id);
+  if (!confirm(`Excluir o auxiliar "${a ? a.name : ''}"? Os fechamentos já salvos não são afetados.`)) return;
+  const { error } = await sb.from('auxiliares').delete().eq('id', id);
+  if (error) { if (typeof toast === 'function') toast('err', 'Erro: ' + error.message); else alert(error.message); return; }
+  if (typeof toast === 'function') toast('ok', 'Auxiliar excluído.');
+  loadAuxiliares();
+}
+
 function renderPag(containerId, currentPage, totalPages, onPageChange) {
   const el = document.getElementById(containerId);
   if (!el || totalPages <= 1) { if (el) el.innerHTML = ''; return; }

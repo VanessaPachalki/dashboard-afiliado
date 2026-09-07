@@ -4,13 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>body{visibility:hidden}</style>
-<title>SPACEHUB — Creators</title>
+<title>SPACEHUB — Equipe</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+  .aux-fld { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; }
+  .aux-fld input, .aux-fld select { text-transform:none; letter-spacing:normal; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:13px; }
+</style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="brand">SPACEHUB <small>Creators</small></div>
+  <div class="brand">SPACEHUB <small>Equipe</small></div>
   <div class="nav-links" id="topbar-nav"></div>
 </div>
 
@@ -22,9 +26,37 @@
   <div id="overview" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
 </div>
 
-<!-- Creators -->
+<!-- Auxiliares -->
 <div class="admin-section">
-  <h2>Creators</h2>
+  <h2>Auxiliares</h2>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Pessoas que cobrem turnos nas lives. Os dados de pagamento facilitam o repasse (é o Creator Host que paga).</p>
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+      <label class="aux-fld">Nome<input type="text" id="auxNome"></label>
+      <label class="aux-fld">E-mail (login futuro)<input type="email" id="auxEmail"></label>
+      <label class="aux-fld">Telefone<input type="text" id="auxTel"></label>
+      <label class="aux-fld">Tipo PIX
+        <select id="auxPixType"><option value="">—</option><option>CPF</option><option>CNPJ</option><option>E-mail</option><option>Telefone</option><option>Aleatória</option></select></label>
+      <label class="aux-fld">Chave PIX<input type="text" id="auxPix"></label>
+      <label class="aux-fld">Banco<input type="text" id="auxBank"></label>
+      <label class="aux-fld">Agência<input type="text" id="auxAg"></label>
+      <label class="aux-fld">Conta<input type="text" id="auxConta"></label>
+      <label class="aux-fld" style="grid-column:1/-1;">Observações<input type="text" id="auxObs"></label>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="hidden" id="auxId">
+      <button class="btn-primary" onclick="saveAuxiliar()">Salvar auxiliar</button>
+      <button class="btn-sm" onclick="resetAuxForm()" style="background:transparent;">Limpar</button>
+      <span class="msg" id="auxMsg" style="margin:0;"></span>
+    </div>
+  </div>
+  <div id="auxList"></div>
+</div>
+
+<!-- Acessos (logins) -->
+<div class="admin-section">
+  <h2>Acessos</h2>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Convide logins (Creator Host ou Auxiliar) para a visão consultiva.</p>
   <div class="add-row">
     <input type="email" id="inviteEmail" placeholder="email@creator.com">
     <input type="text" id="inviteName" placeholder="Nome (opcional)" style="max-width:200px;">
@@ -65,6 +97,7 @@
   }
   await renderNav('admin');
   await loadAdmin();
+  await loadAuxiliares();
 })();
 </script>
 </body>
