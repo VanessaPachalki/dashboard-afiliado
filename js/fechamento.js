@@ -398,8 +398,27 @@ const GRAN_LABEL = {
   cancelado: 'Cancelado', devolucao: 'Devolução', analise: 'Em análise', aguardando: 'Aguardando'
 };
 
-// Lista de pedidos do turno atual (pra tabela de detalhes + busca)
+// Lista de pedidos do turno atual (pra tabela de detalhes + busca + ordenação)
 let lastTurnoOrders = [];
+let ordDetailSort = { key: 'dt', dir: 'asc' };
+
+// ordem lógica dos status (pra ordenar por status de forma útil)
+const STATUS_ORDER = { liquidado: 0, pendente: 1, aguardando: 2, naopago: 3, cancelado: 4, devolucao: 5, analise: 6 };
+const ORD_DETAIL_VAL = {
+  dt: o => orderDT(o),
+  product: o => (o.product_name || '').toLowerCase(),
+  store: o => (o.store_name || '').toLowerCase(),
+  status: o => STATUS_ORDER[granularStatus(o)] ?? 9,
+  est: o => Number(o.estimated_commission) || 0,
+  receb: o => Number(o.received_commission) || 0,
+  gmv: o => Number(o.gmv) || 0
+};
+
+function sortOrdersDetail(key) {
+  if (ordDetailSort.key === key) ordDetailSort.dir = ordDetailSort.dir === 'asc' ? 'desc' : 'asc';
+  else ordDetailSort = { key, dir: 'asc' };
+  renderOrdersDetail();
+}
 
 function renderOrdersDetail() {
   const el = document.getElementById('ordersDetail');
@@ -408,6 +427,11 @@ function renderOrdersDetail() {
   let list = lastTurnoOrders;
   if (q) list = list.filter(o =>
     (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q));
+  // ordenação
+  const dir = ordDetailSort.dir === 'asc' ? 1 : -1;
+  const val = ORD_DETAIL_VAL[ordDetailSort.key] || ORD_DETAIL_VAL.dt;
+  list = list.slice().sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+
   const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const body = list.map(o => {
     const k = granularStatus(o);
@@ -421,12 +445,14 @@ function renderOrdersDetail() {
       <td class="r" style="padding:4px 8px;">${fmtBRL(o.gmv)}</td>
     </tr>`;
   }).join('');
+
+  const arrow = k => ordDetailSort.key === k ? (ordDetailSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const th = (k, label, cls) =>
+    `<th class="${cls || ''}" onclick="sortOrdersDetail('${k}')" style="padding:4px 8px;cursor:pointer;user-select:none;white-space:nowrap;">${label}${arrow(k)}</th>`;
   el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
     <thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">
-      <th style="padding:4px 8px;">Data/Hora</th><th style="padding:4px 8px;">Produto</th>
-      <th style="padding:4px 8px;">Loja</th><th style="padding:4px 8px;">Status</th>
-      <th class="r" style="padding:4px 8px;">Estimada</th><th class="r" style="padding:4px 8px;">Recebida</th>
-      <th class="r" style="padding:4px 8px;">GMV</th>
+      ${th('dt', 'Data/Hora')}${th('product', 'Produto')}${th('store', 'Loja')}${th('status', 'Status')}
+      ${th('est', 'Estimada', 'r')}${th('receb', 'Recebida', 'r')}${th('gmv', 'GMV', 'r')}
     </tr></thead>
     <tbody>${body || '<tr><td colspan="7" style="color:var(--muted);padding:10px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
   </table>
