@@ -282,18 +282,27 @@ export default async function handler(req, res) {
     ].filter((a, i, arr) => arr.findIndex(x => x.cipher === a.cipher) === i);
 
     let orderPath = null, endpoint = null, cipher = null, winCategory = null;
+    let fallback = null; // 1º endpoint/cipher que responde ok, mesmo vazio
     const tried = [];
     for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
       for (const a of ordered) {
         const probe = await signedPost(ep.path,
           { category_asset_cipher: a.cipher, page_size: '1' },
           { create_time_ge: ge, create_time_lt: lt }, accessToken);
-        tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, message: probe.message });
-        if (!probe.code || probe.code === 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); break; }
-        if (probe.code === 105005) break; // sem escopo nesse endpoint — pula pro próximo endpoint
+        const ok = !probe.code || probe.code === 0;
+        const count = ok && probe.data ? (probe.data.total_count ?? (probe.data.orders || []).length) : null;
+        tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, count, message: ok ? undefined : probe.message });
+        if (ok) {
+          if (!fallback) fallback = { path: ep.path, tag: ep.tag, cipher: a.cipher, cat: nameOf(a) };
+          if (count > 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); break; }
+        } else if (probe.code === 105005) {
+          break; // sem escopo nesse endpoint — pula pro próximo endpoint
+        }
       }
       if (cipher) break;
     }
+    // se nenhuma categoria trouxe pedidos, usa a 1ª válida (importa 0, mas não erra)
+    if (!cipher && fallback) { orderPath = fallback.path; endpoint = fallback.tag; cipher = fallback.cipher; winCategory = fallback.cat; }
     if (!cipher) {
       return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried });
     }
@@ -352,6 +361,7 @@ export default async function handler(req, res) {
       ok: true, imported: total, pages, endpoint, category: winCategory,
       creators: creatorsSet.size,
       window: { ge, lt, days },
+      ...(total === 0 ? { diagnostico: tried } : {}),
       sample: sample ? { id: sample.id, status: sample.status, create_time: sample.create_time,
         skus_type: Array.isArray(sample.skus) ? 'array' : typeof sample.skus } : null
     });
