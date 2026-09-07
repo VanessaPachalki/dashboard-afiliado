@@ -26,28 +26,14 @@
 <div class="admin-section">
   <h2>TikTok Shop — Integração</h2>
   <p style="color:var(--muted);margin:0 0 12px;font-size:14px;">
-    Autorize uma vez como agência (conta principal) e importe os pedidos de todos os creators
-    automaticamente — com comissão, impostos e o creator de cada venda. Os creators não precisam conectar nada.
+    Autorize uma vez como agência (conta principal). Depois é só importar os pedidos no
+    <strong>Fechamento → Passo 1 (Dados)</strong> — com comissão, impostos e o creator de cada venda.
+    Os creators não precisam conectar nada.
   </p>
   <div id="ttPartnerStatus" class="msg" style="margin-bottom:12px;"></div>
   <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;">
     <button class="btn-sm" id="ttConnectBtn" onclick="connectTiktokPartner()">Conectar TikTok (Partner)</button>
   </div>
-  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
-    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
-      De (dia)
-      <input type="date" id="ttSyncFrom" class="btn-sm" style="max-width:170px;">
-    </label>
-    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
-      Até (dia)
-      <input type="date" id="ttSyncTo" class="btn-sm" style="max-width:170px;">
-    </label>
-    <button class="btn-sm" id="ttSyncBtn" onclick="syncTiktokPartner()">Sincronizar pedidos</button>
-  </div>
-  <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">
-    Importe um dia por vez (ou um período curto). Deixe as datas em branco para o último 1 dia.
-  </p>
-  <div class="msg" id="ttSyncMsg" style="margin-top:10px;"></div>
 </div>
 
 </div>
