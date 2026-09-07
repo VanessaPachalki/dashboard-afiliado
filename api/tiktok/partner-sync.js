@@ -253,7 +253,8 @@ export default async function handler(req, res) {
       const amt = o => (o && o.amount != null ? (Number(o.amount) || 0) : 0);
       const r2 = x => Math.round(x * 100) / 100;
       let pageToken = '', pages = 0, n = 0;
-      const st = {}; let est = 0, gross = 0, net = 0, netSettled = 0, estPending = 0, price = 0;
+      const st = {}; let estPending = 0, price = 0;
+      const settledSums = {}; // soma de TODOS os campos {amount} dos LIQUIDADOS
       while (pages < 300) {
         const q = { category_asset_cipher: cipher, page_size: '100', ...(pageToken ? { page_token: pageToken } : {}) };
         const data = await signedPost(CAP_ORDER_PATH, q, { create_time_ge: ge, create_time_lt: lt }, accessToken);
@@ -264,24 +265,27 @@ export default async function handler(req, res) {
           n++;
           const s = String(so.settle_status || '').toUpperCase();
           st[s] = (st[s] || 0) + 1;
-          est += amt(so.estimated_standard_commission);
-          gross += amt(so.actual_standard_commission);
-          net += amt(so.actual_creator_total_earnings_after_tax);
           price += amt(so.price);
-          if (s.includes('SETTLED')) netSettled += amt(so.actual_creator_total_earnings_after_tax);
           if (s.includes('PENDING')) estPending += amt(so.estimated_standard_commission);
+          if (s.includes('SETTLED')) {
+            for (const [k, v] of Object.entries(so)) {
+              if (v && typeof v === 'object' && v.amount != null) {
+                settledSums[k] = (settledSums[k] || 0) + (Number(v.amount) || 0);
+              }
+            }
+          }
         }
         pageToken = (data.data && data.data.next_page_token) || '';
         pages++;
         if (!pageToken) break;
       }
+      const settledRounded = {};
+      for (const k of Object.keys(settledSums).sort()) settledRounded[k] = r2(settledSums[k]);
       return res.status(200).json({
         debug: 'verify', creator, window: { ge, lt }, pages, pedidos: n, status: st,
-        soma: {
-          estimada_padrao: r2(est), recebida_bruta: r2(gross),
-          recebida_liquida: r2(net), recebida_liquida_liquidados: r2(netSettled),
-          estimada_pendentes: r2(estPending), preco: r2(price)
-        }
+        estimada_pendentes: r2(estPending), preco: r2(price),
+        ALVO_valor_final_recebido: 13395.36,
+        somas_dos_LIQUIDADOS: settledRounded
       });
     }
 
