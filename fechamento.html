@@ -10,158 +10,127 @@
 <body>
 
 <div class="topbar">
-  <div class="brand">SPACEHUB <small>Fechamento de Comissões</small></div>
+  <div class="brand">SPACEHUB <small>Fechamento</small></div>
   <div class="nav-links" id="topbar-nav"></div>
 </div>
 
-<div class="container" style="max-width:1400px;">
+<div class="container" style="max-width:1100px;">
 
-<!-- Vendedores -->
-<div class="admin-section">
-  <h2>Vendedores</h2>
-  <div class="add-row">
-    <select id="sellerAccount" onchange="onSellerAccountChange()">
-      <option value="">Selecione a conta</option>
-    </select>
-    <input type="text" id="sellerName" placeholder="Nome do vendedor">
-    <input type="text" id="sellerPct" inputmode="decimal" placeholder="Comissão %" style="max-width:120px;">
-    <button class="btn-sm" onclick="addSeller()">Adicionar</button>
-  </div>
-  <div class="msg" id="sellerMsg" style="margin-bottom:12px;"></div>
-  <div class="tbl">
-    <table>
-      <thead><tr><th>Vendedor</th><th>Conta</th><th>Comissão %</th><th>Criado em</th><th></th></tr></thead>
-      <tbody id="tSellers"></tbody>
-    </table>
+<!-- Stepper -->
+<div class="wizard-steps">
+  <div class="wstep active" id="ws1" onclick="wizardGo(1)"><span class="wnum">1</span> Dados</div>
+  <div class="wstep" id="ws2" onclick="wizardGo(2)"><span class="wnum">2</span> Escala do dia</div>
+  <div class="wstep" id="ws3" onclick="wizardGo(3)"><span class="wnum">3</span> Relatórios</div>
+</div>
+
+<!-- ===== PASSO 1: DADOS ===== -->
+<div class="wpanel" id="wpanel1">
+  <div class="admin-section">
+    <h2>1. Dados dos pedidos</h2>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 14px;">
+      Veja quais dias já estão no sistema. Dia com pedidos <strong>pendentes</strong> ainda vai mudar (as vendas liquidam depois) — vale
+      re-sincronizar. Dia <strong>final</strong> (0 pendentes) pode seguir direto. Re-sincronizar é seguro: atualiza, não duplica.
+    </p>
+    <div class="add-row" style="align-items:flex-end;gap:10px;">
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
+        <input type="date" id="freshFrom" class="btn-sm" style="max-width:160px;"></label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
+        <input type="date" id="freshTo" class="btn-sm" style="max-width:160px;"></label>
+      <button class="btn-ghost" onclick="loadFreshness()">Ver dias</button>
+    </div>
+
+    <!-- Importar (só matriz) -->
+    <div id="importBox" class="card" style="display:none;margin-top:16px;">
+      <strong style="font-size:13px;">Importar / atualizar da TikTok</strong>
+      <div class="add-row" style="align-items:flex-end;gap:10px;margin-top:10px;">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
+          <input type="date" id="impFrom" class="btn-sm" style="max-width:160px;"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
+          <input type="date" id="impTo" class="btn-sm" style="max-width:160px;"></label>
+        <button class="btn-primary" id="impBtn" onclick="importDays()">Importar / atualizar</button>
+      </div>
+      <div class="msg" id="impMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <div id="freshList" style="margin-top:16px;"></div>
+
+    <div class="wnav"><button class="btn-primary" onclick="wizardGo(2)">Continuar →</button></div>
   </div>
 </div>
 
-<!-- Fechamento -->
-<div class="admin-section">
-  <h2>Calcular Fechamento</h2>
-  <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr auto;gap:10px;align-items:end;">
-    <div class="field">
-      <label for="fechAccount">Conta / Creator</label>
-      <input type="text" id="fechAccountSearch" placeholder="Buscar creator..." oninput="filterFechAccounts()" autocomplete="off"
-        style="margin-bottom:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;width:100%;box-sizing:border-box;">
-      <select id="fechAccount" onchange="onFechAccountChange()">
-        <option value="">Selecione</option>
-      </select>
+<!-- ===== PASSO 2: ESCALA ===== -->
+<div class="wpanel" id="wpanel2" style="display:none;">
+  <div class="admin-section">
+    <h2>2. Operação de live</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
+      Escolha o <strong>Creator Host</strong> (o perfil onde a live aconteceu) e o período — a live pode durar
+      vários dias. Depois lance os responsáveis por turno, cada um com data e hora de início e fim.
+    </p>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;">
+      <div class="field" style="position:relative;">
+        <label>Creator Host</label>
+        <input type="text" id="fechAccountSearch" placeholder="Buscar creator host..." autocomplete="off"
+          oninput="comboFilter()" onfocus="comboFilter()"
+          style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;width:100%;box-sizing:border-box;">
+        <input type="hidden" id="fechAccount">
+        <div id="fechAccountList" class="combo-list" style="display:none;"></div>
+      </div>
+      <div class="field"><label for="escalaFrom">De (dia)</label><input type="date" id="escalaFrom"></div>
+      <div class="field"><label for="escalaTo">Até (dia)</label><input type="date" id="escalaTo"></div>
+      <button class="btn-ghost" onclick="escalaCarregarPeriodo()">Carregar período</button>
     </div>
-    <div class="field">
-      <label for="fechSeller">Vendedor</label>
-      <select id="fechSeller">
-        <option value="">Selecione</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="fechStart">Data inicial</label>
-      <input type="date" id="fechStart">
-    </div>
-    <div class="field">
-      <label for="fechEnd">Data final</label>
-      <input type="date" id="fechEnd">
-    </div>
-    <button class="btn-sm" onclick="loadLives()">Buscar Lives</button>
-  </div>
-  <div class="msg" id="fechMsg" style="margin-bottom:12px;"></div>
-</div>
+    <div class="msg" id="escalaMsg" style="margin:10px 0;"></div>
 
-<!-- Turno do creator -->
-<div class="admin-section" id="livesSection" style="display:none;">
-  <h2 style="margin-bottom:4px;">Turno do Creator</h2>
-  <p style="font-size:11px;color:var(--muted);margin:0 0 14px;">
-    Defina a faixa de data e hora do turno. O sistema pega todos os pedidos nesse intervalo,
-    de qualquer live. Funciona quando o turno cruza a meia-noite. Os limites vêm das lives que você subiu.
-  </p>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-    <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Turno:</span>
-    <input type="datetime-local" id="turnoIni" style="width:210px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-    <span style="color:var(--muted);font-size:12px;">até</span>
-    <input type="datetime-local" id="turnoFim" style="width:210px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-    <span id="turnoRange" style="font-size:11px;color:var(--muted);margin-left:6px;"></span>
-  </div>
-
-  <p style="font-size:11px;color:var(--muted);margin:18px 0 8px;">Lives no período (referência dos horários disponíveis):</p>
-  <div id="livesList"></div>
-
-  <div style="margin-top:16px;">
-    <button class="btn-sm" onclick="calcularFechamento()">Calcular Fechamento</button>
-  </div>
-</div>
-
-<!-- Resultado -->
-<div class="admin-section" id="resultSection" style="display:none;">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">
-    <h2 style="margin:0;">Resultado do Fechamento</h2>
-    <div style="display:flex;gap:8px;">
-      <button class="btn-sm" onclick="exportarImagem()">Exportar Imagem</button>
-      <button class="btn-sm" onclick="exportarPDF()">Exportar PDF</button>
+    <div id="escalaBox" style="display:none;">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:16px 0 10px;">
+        <strong style="font-size:13px;">Turnos (responsáveis)</strong>
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-left:auto;">% de repasse ao creator
+          <input type="text" id="escalaPct" inputmode="decimal" value="100"
+            style="width:70px;padding:6px 8px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;text-align:center;"></label>
+      </div>
+      <span id="escalaRange" style="font-size:11px;color:var(--muted);display:block;margin-bottom:10px;"></span>
+      <div style="overflow-x:auto;">
+        <table class="escala-table">
+          <thead><tr>
+            <th style="min-width:170px;">Responsável(is)</th>
+            <th style="width:200px;">Início (data e hora)</th>
+            <th style="width:200px;">Fim (data e hora)</th>
+            <th class="col-qtd" style="width:70px;" title="Nº de creators no turno (divide a comissão)">Qtd</th>
+            <th style="width:36px;"></th>
+          </tr></thead>
+          <tbody id="escalaRows"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;"><button class="btn-ghost" onclick="escalaAddRow()">+ Adicionar turno</button></div>
+      <div id="escalaConflito" style="margin-top:12px;"></div>
+      <div class="wnav">
+        <button class="btn-ghost" onclick="wizardGo(1)">← Voltar</button>
+        <button class="btn-primary" onclick="escalaCalcAll()">Calcular tudo →</button>
+      </div>
     </div>
-  </div>
-  <div id="resultSummary"></div>
 
-  <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <span style="font-size:12px;color:var(--muted);">Salvar turno <em>(opcional)</em>:</span>
-    <input type="text" id="turnoNome" placeholder="Nome do creator" style="max-width:220px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-    <input type="number" id="turnoQtd" min="1" step="1" value="1" title="Qtd. de creators (divide a comissão)" style="max-width:80px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-    <span style="font-size:11px;color:var(--muted);">creators</span>
-    <button class="btn-sm" onclick="salvarTurno()">Salvar turno</button>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h3>Comissão a Pagar</h3>
-    <div id="comissaoResult"></div>
-  </div>
-
-  <div class="g3" style="margin-top:16px;">
-    <div class="card" style="overflow:hidden;">
-      <h3>Liquidados</h3>
-      <canvas id="chartLiquidados"></canvas>
-    </div>
-    <div class="card" style="overflow:hidden;">
-      <h3>Não Pagou</h3>
-      <canvas id="chartNaoPagou"></canvas>
-    </div>
-    <div class="card" style="overflow:hidden;">
-      <h3>Cancelou / Devolveu</h3>
-      <canvas id="chartCancelou"></canvas>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
-      <h3 style="margin:0;">Detalhes dos pedidos</h3>
-      <input type="text" id="ordersDetailSearch" placeholder="Buscar produto ou loja..." oninput="renderOrdersDetail()" autocomplete="off"
-        style="max-width:260px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-    </div>
-    <div id="ordersDetail" style="overflow:auto;max-height:460px;"></div>
   </div>
 </div>
 
-<!-- Turnos salvos -->
-<div class="admin-section" id="turnosSection" style="display:none;">
-  <h2 style="margin-bottom:4px;">Turnos salvos</h2>
-  <p style="font-size:11px;color:var(--muted);margin:0 0 12px;">Turnos salvos desta conta. Baixe o relatório de cada um ou remova. O sistema avisa se dois turnos têm horário sobreposto.</p>
-  <div id="turnosConflito"></div>
-  <div id="turnosList"></div>
-</div>
-
-</div>
-
-<!-- Popup de export -->
-<div id="exportModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:360px;max-width:92vw;">
-    <h3 style="margin:0 0 16px;">Gerar relatório</h3>
-    <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Nome do creator</label>
-    <input type="text" id="expNome" placeholder="Ex: Malu &amp; Gabi" style="width:100%;margin-bottom:16px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
-    <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Qtd. de creators <span style="color:var(--muted);">(divide a comissão)</span></label>
-    <input type="number" id="expQtd" min="1" step="1" value="1" style="width:100%;margin-bottom:20px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;">
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="del" onclick="fecharExportModal()">Cancelar</button>
-      <button class="btn-sm" onclick="confirmarExportModal()">Gerar</button>
+<!-- ===== PASSO 3: RELATÓRIOS ===== -->
+<div class="wpanel" id="wpanel3" style="display:none;">
+  <div class="admin-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <h2 style="margin:0;">3. Resultado & Relatórios</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-ghost" onclick="gerarTodos('img')">Baixar imagens</button>
+        <button class="btn-ghost" onclick="gerarTodos('pdf')">Baixar PDFs</button>
+        <button class="btn-primary" onclick="salvarEscala()">Salvar escala</button>
+      </div>
     </div>
+    <div id="escalaResultInfo" class="callout" style="margin-bottom:12px;"></div>
+    <div id="escalaConflito2"></div>
+    <div id="escalaResults"></div>
+    <div id="escalaSaveMsg" class="msg" style="margin-top:10px;"></div>
+    <div class="wnav"><button class="btn-ghost" onclick="wizardGo(2)">← Editar escala</button></div>
   </div>
+</div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -176,9 +145,9 @@
   await resolveTenant();
   const session = await requireAuth();
   if (!session) return;
-  // Creator e matriz têm acesso ao fechamento (isolado por RLS).
   await renderNav('fechamento');
   await initFechamento();
+  await initFechamentoJornada();
 })();
 </script>
 </body>

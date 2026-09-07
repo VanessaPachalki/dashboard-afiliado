@@ -65,18 +65,42 @@ async function initFechamento() {
 
   allAccountsList = accounts || [];
 
+  // (compat) se ainda existir o select de conta de vendedor, popula
   const sellerAccSel = document.getElementById('sellerAccount');
-  const fechAccSel = document.getElementById('fechAccount');
-
-  const opts = allAccountsList.map(a =>
-    `<option value="${escAttr(a.id)}">${esc(a.name)}${a.email ? ' (' + esc(a.email) + ')' : ''}</option>`
-  ).join('');
-
-  sellerAccSel.innerHTML = '<option value="">Selecione a conta</option>' + opts;
-  fechAccSel.innerHTML = '<option value="">Selecione</option>' + opts;
+  if (sellerAccSel) {
+    const opts = allAccountsList.map(a =>
+      `<option value="${escAttr(a.id)}">${esc(a.name)}${a.email ? ' (' + esc(a.email) + ')' : ''}</option>`
+    ).join('');
+    sellerAccSel.innerHTML = '<option value="">Selecione a conta</option>' + opts;
+  }
 
   await loadSellers();
 }
+
+// ---- Combobox de busca do Creator Host ----
+function comboFilter() {
+  const q = (document.getElementById('fechAccountSearch').value || '').toLowerCase().trim();
+  const listEl = document.getElementById('fechAccountList');
+  if (!listEl) return;
+  let items = allAccountsList;
+  if (q) items = items.filter(a =>
+    (a.name || '').toLowerCase().includes(q) || (a.email || '').toLowerCase().includes(q));
+  items = items.slice(0, 60);
+  if (!items.length) { listEl.innerHTML = '<div class="combo-empty">Nenhum creator host encontrado.</div>'; listEl.style.display = ''; return; }
+  listEl.innerHTML = items.map(a =>
+    `<div class="combo-item" data-id="${escAttr(a.id)}" data-name="${escAttr(a.name)}" onmousedown="comboPick(this)">${esc(a.name)}${a.email ? ` <span style="color:var(--muted);">(${esc(a.email)})</span>` : ''}</div>`
+  ).join('');
+  listEl.style.display = '';
+}
+function comboPick(el) {
+  document.getElementById('fechAccount').value = el.getAttribute('data-id');
+  document.getElementById('fechAccountSearch').value = el.getAttribute('data-name');
+  document.getElementById('fechAccountList').style.display = 'none';
+}
+document.addEventListener('click', (e) => {
+  const listEl = document.getElementById('fechAccountList');
+  if (listEl && e.target.id !== 'fechAccountSearch' && !e.target.closest('#fechAccountList')) listEl.style.display = 'none';
+});
 
 // Opções do seletor de conta do Fechamento (usado pela busca)
 function fechAccountOptions(list) {
@@ -112,6 +136,7 @@ async function loadSellers() {
 
 function renderSellers() {
   const tb = document.getElementById('tSellers');
+  if (!tb) return; // seção de vendedores não existe na jornada
   if (!allSellers.length) {
     tb.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;">Nenhum vendedor cadastrado.</td></tr>';
     return;
@@ -1068,4 +1093,271 @@ async function removerTurno(id, name) {
   renderTurnos();
   const { error } = await sb.from('turnos').delete().eq('id', id);
   if (error) { savedTurnos = prev; renderTurnos(); }
+}
+
+// ================================================
+// JORNADA DO FECHAMENTO (wizard) — Dados → Escala → Relatórios
+// ================================================
+
+let escalaState = { orders: [], results: [], pct: 100 };
+
+function setEscalaMsg(cls, txt) {
+  const m = document.getElementById('escalaMsg');
+  if (m) { m.className = 'msg' + (cls ? ' msg-' + cls : ''); m.textContent = txt; }
+}
+
+function wizardGo(n) {
+  for (let i = 1; i <= 3; i++) {
+    const p = document.getElementById('wpanel' + i);
+    if (p) p.style.display = i === n ? '' : 'none';
+    const ws = document.getElementById('ws' + i);
+    if (ws) { ws.classList.toggle('active', i === n); ws.classList.toggle('done', i < n); }
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+async function initFechamentoJornada() {
+  const role = await getUserRole();
+  if (role && role.is_matriz) {
+    const ib = document.getElementById('importBox');
+    if (ib) ib.style.display = '';
+  }
+  wizardGo(1);
+}
+
+// ---- Passo 1: frescor dos dias ----
+async function loadFreshness() {
+  const from = document.getElementById('freshFrom').value;
+  const to = document.getElementById('freshTo').value;
+  const el = document.getElementById('freshList');
+  if (!from || !to) { el.innerHTML = '<div class="msg msg-err">Selecione De e Até.</div>'; return; }
+  el.innerHTML = '<div class="msg">Carregando...</div>';
+  const { data, error } = await sb.rpc('fech_days', { p_from: from, p_to: to });
+  if (error) { el.innerHTML = `<div class="msg msg-err">Erro: ${error.message} (rodou a migration fech-days-summary.sql?)</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div class="msg">Nenhum pedido nesse período. Importe abaixo.</div>'; return; }
+  const fmtDay = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+  el.innerHTML = `<table class="freshness"><thead><tr><th>Dia</th><th class="r">Pedidos</th><th>Status</th></tr></thead><tbody>` +
+    data.map(r => {
+      const pend = Number(r.pendentes);
+      const badge = pend > 0
+        ? `<span class="badge badge-pend">⟳ ${pend.toLocaleString('pt-BR')} pendentes — vale atualizar</span>`
+        : `<span class="badge badge-final">✓ Final</span>`;
+      return `<tr><td>${fmtDay(r.order_date)}</td><td class="r">${Number(r.total).toLocaleString('pt-BR')}</td><td>${badge}</td></tr>`;
+    }).join('') + `</tbody></table>`;
+}
+
+// ---- Passo 1: importar/atualizar da TikTok (matriz), em lotes ----
+async function importDays() {
+  const msg = document.getElementById('impMsg');
+  const btn = document.getElementById('impBtn');
+  const from = document.getElementById('impFrom').value;
+  const to = document.getElementById('impTo').value;
+  const uid = await myUid();
+  if (!uid) return;
+  let ge, lt;
+  if (from) {
+    ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
+    const ed = to || from;
+    lt = Math.floor(new Date(ed + 'T00:00:00-03:00').getTime() / 1000) + 86400;
+  } else {
+    const now = Math.floor(Date.now() / 1000); ge = now - 86400; lt = now;
+  }
+  const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
+  if (btn) btn.disabled = true;
+  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
+  set('', 'Importando...');
+  let pt = null, ci = null, ep = null, grand = 0, b = 0, td = null;
+  try {
+    while (b < 1000) {
+      let url = `/api/tiktok/partner-sync?${base}`;
+      if (pt) url += `&page_token=${encodeURIComponent(pt)}&cipher=${encodeURIComponent(ci)}&endpoint=${encodeURIComponent(ep)}`;
+      const j = await (await fetch(url)).json();
+      if (!j.ok) { set('msg-err', 'Erro: ' + (j.message || j.error || '') + (j.code ? ` [${j.code}]` : '')); return; }
+      grand += j.imported || 0; ci = j.cipher || ci; ep = j.endpoint || ep;
+      if (j.total_disponivel != null) td = j.total_disponivel; b++;
+      set('', `Importando... ${grand.toLocaleString('pt-BR')}${td ? ' de ~' + td.toLocaleString('pt-BR') : ''} (lote ${b})`);
+      if (j.done || !j.next_page_token) break;
+      pt = j.next_page_token;
+    }
+    set('msg-ok', `Pronto! ${grand.toLocaleString('pt-BR')} pedidos. Clique em "Ver dias" pra conferir.`);
+    loadFreshness();
+  } catch (e) { set('msg-err', `Parou após ${grand.toLocaleString('pt-BR')} pedidos. Clique de novo pra continuar.`); }
+  finally { if (btn) btn.disabled = false; }
+}
+
+// ---- Passo 2: carrega os pedidos (Live) do período ----
+async function escalaCarregarPeriodo() {
+  const accId = document.getElementById('fechAccount').value;
+  const from = document.getElementById('escalaFrom').value;
+  const to = document.getElementById('escalaTo').value;
+  if (!accId) return setEscalaMsg('err', 'Selecione o creator.');
+  if (!from || !to) return setEscalaMsg('err', 'Selecione De e Até.');
+  if (from > to) return setEscalaMsg('err', 'De deve ser antes de Até.');
+  setEscalaMsg('', 'Carregando pedidos...');
+  let q = sb.from('orders').select('*').eq('account_id', accId).eq('content_type', 0)
+    .gte('order_date', from).lte('order_date', to).order('order_date');
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { data, error } = await q;
+  if (error) return setEscalaMsg('err', 'Erro: ' + error.message);
+  escalaState = { accountId: accId, from, to, orders: data || [], results: [], pct: 100 };
+  const box = document.getElementById('escalaBox');
+  if (!escalaState.orders.length) {
+    setEscalaMsg('err', 'Nenhum pedido (Live) nesse período. Importe no Passo 1.');
+    if (box) box.style.display = 'none';
+    return;
+  }
+  let mn = null, mx = null;
+  escalaState.orders.forEach(o => { const dt = orderDT(o); if (mn === null || dt < mn) mn = dt; if (mx === null || dt > mx) mx = dt; });
+  escalaState.min = mn; escalaState.max = mx;
+  document.getElementById('escalaRange').textContent =
+    `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
+  if (box) box.style.display = '';
+  setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados.`);
+  document.getElementById('escalaRows').innerHTML = '';
+  escalaAddRow(mn, mx); // 1ª linha já cobrindo o período todo
+}
+
+function escalaAddRow(ini, fim) {
+  const tb = document.getElementById('escalaRows');
+  if (!tb) return;
+  const mm = escalaState.min ? `min="${escalaState.min}" max="${escalaState.max}"` : '';
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    `<td><input class="es-nome" placeholder="Nome do responsável" oninput="escalaCheckLive()"></td>
+     <td><input type="datetime-local" class="es-ini" ${mm} value="${ini || ''}" oninput="escalaCheckLive()"></td>
+     <td><input type="datetime-local" class="es-fim" ${mm} value="${fim || ''}" oninput="escalaCheckLive()"></td>
+     <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
+     <td><button class="del" title="Remover" onclick="this.closest('tr').remove();escalaCheckLive()">×</button></td>`;
+  tb.appendChild(tr);
+  escalaCheckLive();
+}
+
+function escalaReadRows() {
+  const rows = [];
+  document.querySelectorAll('#escalaRows tr').forEach(tr => {
+    const nome = tr.querySelector('.es-nome').value.trim();
+    const ini = tr.querySelector('.es-ini').value;
+    const fim = tr.querySelector('.es-fim').value;
+    let qtd = parseInt(tr.querySelector('.es-qtd').value, 10); if (!qtd || qtd < 1) qtd = 1;
+    rows.push({ nome, ini, fim, qtd });
+  });
+  return rows;
+}
+
+// checagem em tempo real: sobreposição entre turnos + gap/overlap vs pedidos
+function escalaCheckLive() {
+  const el = document.getElementById('escalaConflito');
+  if (!el || !escalaState.orders) return;
+  const rows = escalaReadRows().filter(r => r.ini && r.fim && r.ini < r.fim);
+  const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const warns = [];
+  for (let i = 0; i < rows.length; i++)
+    for (let j = i + 1; j < rows.length; j++)
+      if (rows[i].ini < rows[j].fim && rows[j].ini < rows[i].fim)
+        warns.push(`⚠ Sobreposição: "${rows[i].nome || 'turno ' + (i + 1)}" e "${rows[j].nome || 'turno ' + (j + 1)}" pegam o mesmo horário.`);
+  let gap = 0, gapReceb = 0, over = 0;
+  escalaState.orders.forEach(o => {
+    const dt = orderDT(o);
+    const cov = rows.filter(r => dt >= r.ini && dt < r.fim).length;
+    if (cov === 0) { gap++; if (o.settlement_status === 0) gapReceb += parseFloat(o.received_commission) || 0; }
+    else if (cov > 1) over++;
+  });
+  let html = warns.map(w => `<div class="msg msg-err" style="margin-bottom:6px;">${w}</div>`).join('');
+  if (gap > 0) html += `<div class="msg" style="margin-bottom:6px;background:var(--orange-soft);color:var(--orange);">⬤ ${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno (${fmtBRL(gapReceb)} de comissão sem responsável). Cubra o período ou siga assim.</div>`;
+  if (over > 0) html += `<div class="msg msg-err" style="margin-bottom:6px;">⚠ ${over.toLocaleString('pt-BR')} pedido(s) caem em mais de um turno (contados 2x).</div>`;
+  if (!html && rows.length) html = `<div class="msg msg-ok">✓ Todos os pedidos cobertos, sem sobreposição.</div>`;
+  el.innerHTML = html;
+}
+
+function escalaCalcAll() {
+  const rows = escalaReadRows();
+  const valid = rows.filter(r => r.nome && r.ini && r.fim && r.ini < r.fim);
+  if (!valid.length) return setEscalaMsg('err', 'Adicione ao menos um turno com nome, início e fim.');
+  const pct = parseFloat((document.getElementById('escalaPct').value || '100').replace(',', '.')) || 0;
+  escalaState.results = valid.map(r => {
+    const sel = escalaState.orders.filter(o => { const dt = orderDT(o); return dt >= r.ini && dt < r.fim; });
+    const liq = sel.filter(o => o.settlement_status === 0);
+    const inel = sel.filter(o => o.settlement_status === 1);
+    const recebida = liq.reduce((s, o) => s + (parseFloat(o.received_commission) || 0), 0);
+    const pagar = recebida * pct / 100;
+    return { ...r, pct, recebida, pagar, porCreator: pagar / r.qtd, liquidados: liq.length, inelegiveis: inel.length, total: sel.length };
+  });
+  escalaState.pct = pct;
+  renderEscalaResults();
+  wizardGo(3);
+}
+
+function renderEscalaResults() {
+  const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const rows = escalaState.results || [];
+  // avisos finais (gap/sobreposição) contra os pedidos
+  const el2 = document.getElementById('escalaConflito2');
+  let gap = 0, gapReceb = 0, over = 0;
+  escalaState.orders.forEach(o => {
+    const dt = orderDT(o);
+    const cov = rows.filter(r => dt >= r.ini && dt < r.fim).length;
+    if (cov === 0) { gap++; if (o.settlement_status === 0) gapReceb += parseFloat(o.received_commission) || 0; }
+    else if (cov > 1) over++;
+  });
+  let warn = '';
+  if (gap > 0) warn += `<div class="msg" style="margin-bottom:6px;background:var(--orange-soft);color:var(--orange);">⬤ ${gap.toLocaleString('pt-BR')} pedido(s) ficaram FORA de qualquer turno (${fmtBRL(gapReceb)} sem responsável).</div>`;
+  if (over > 0) warn += `<div class="msg msg-err" style="margin-bottom:6px;">⚠ ${over.toLocaleString('pt-BR')} pedido(s) estão em MAIS DE UM turno (comissão contada 2x).</div>`;
+  if (!warn) warn = `<div class="msg msg-ok" style="margin-bottom:6px;">✓ Cobertura completa, sem sobreposição.</div>`;
+  if (el2) el2.innerHTML = warn;
+
+  const totPagar = rows.reduce((s, r) => s + r.pagar, 0);
+  document.getElementById('escalaResultInfo').innerHTML =
+    `<strong>${rows.length}</strong> turno(s) · repasse <strong>${escalaState.pct}%</strong> · total a pagar <strong>${fmtBRL(totPagar)}</strong> · período ${fmtDT(escalaState.min)} a ${fmtDT(escalaState.max)}`;
+
+  const body = rows.map((r, i) => `<tr>
+      <td>${esc(r.nome)}${r.qtd > 1 ? ` <span style="color:var(--muted);">(${r.qtd}x)</span>` : ''}</td>
+      <td style="white-space:nowrap;">${fmtDT(r.ini)} → ${fmtDT(r.fim)}</td>
+      <td class="r">${r.liquidados}</td>
+      <td class="r">${r.inelegiveis}</td>
+      <td class="r">${fmtBRL(r.recebida)}</td>
+      <td class="r"><strong style="color:var(--orange);">${fmtBRL(r.pagar)}</strong></td>
+      <td class="r">${r.qtd > 1 ? fmtBRL(r.porCreator) : '—'}</td>
+      <td class="r" style="white-space:nowrap;"><button class="btn-sm" onclick="reportRow(${i},'img')">Img</button> <button class="btn-sm" onclick="reportRow(${i},'pdf')">PDF</button></td>
+    </tr>`).join('');
+  document.getElementById('escalaResults').innerHTML =
+    `<div style="overflow-x:auto;"><table class="escala-table">
+      <thead><tr><th>Responsável</th><th>Turno</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">Recebida</th><th class="r">A pagar</th><th class="r">P/ creator</th><th></th></tr></thead>
+      <tbody>${body}</tbody></table></div>`;
+}
+
+function reportDataRow(r) {
+  return {
+    creator: r.nome, periodo: periodoDe(r.ini, r.fim),
+    turnoStr: `${fmtDT(r.ini)} → ${fmtDT(r.fim)}`,
+    comissao: r.pagar, liquidados: r.liquidados, inelegiveis: r.inelegiveis, qty: r.qtd
+  };
+}
+function reportRow(i, kind) {
+  const r = (escalaState.results || [])[i];
+  if (!r) return;
+  const d = reportDataRow(r);
+  if (kind === 'pdf') baixarPdf(d); else baixarImagem(d);
+}
+async function gerarTodos(kind) {
+  const rows = escalaState.results || [];
+  for (let i = 0; i < rows.length; i++) {
+    reportRow(i, kind);
+    await new Promise(res => setTimeout(res, 700));
+  }
+}
+
+async function salvarEscala() {
+  const msg = document.getElementById('escalaSaveMsg');
+  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
+  const rows = escalaState.results || [];
+  if (!rows.length) return set('msg-err', 'Calcule a escala primeiro.');
+  const uid = await myUid();
+  const recs = rows.map(r => ({
+    agency_id: agencyId(), owner_id: uid, account_id: escalaState.accountId, seller_id: null,
+    creator_name: r.nome, start_dt: r.ini, end_dt: r.fim,
+    comissao: r.pagar, liquidados: r.liquidados, inelegiveis: r.inelegiveis, qty: r.qtd
+  }));
+  const { error } = await sb.from('turnos').insert(recs);
+  if (error) return set('msg-err', 'Erro ao salvar: ' + error.message);
+  set('msg-ok', `${recs.length} turno(s) salvos.`);
 }
