@@ -45,11 +45,13 @@
   <div class="add-row" style="gap:10px;flex-wrap:wrap;">
     <button class="btn-sm" id="ttConnectBtn" onclick="connectTiktokPartner()">Conectar TikTok (Partner)</button>
     <button class="btn-sm" id="ttSyncBtn" onclick="syncTiktokPartner()">Sincronizar pedidos</button>
-    <select id="ttSyncDays" class="btn-sm" style="max-width:160px;">
+    <select id="ttSyncDays" class="btn-sm" style="max-width:180px;">
+      <option value="1" selected>Último 1 dia (teste)</option>
+      <option value="3">Últimos 3 dias</option>
+      <option value="7">Últimos 7 dias</option>
       <option value="30">Últimos 30 dias</option>
-      <option value="60" selected>Últimos 60 dias</option>
+      <option value="60">Últimos 60 dias</option>
       <option value="90">Últimos 90 dias</option>
-      <option value="180">Últimos 180 dias</option>
     </select>
   </div>
   <div class="msg" id="ttSyncMsg" style="margin-top:10px;"></div>
@@ -130,7 +132,11 @@ async function syncTiktokPartner() {
     if (msg) {
       if (j.ok) {
         msg.className = 'msg msg-ok';
-        msg.textContent = `Importados ${j.imported} itens de ${j.creators} creator(s). Já aparecem no Dashboard e no Fechamento.`;
+        let txt = `Importados ${j.imported} itens de ${j.creators} creator(s).`;
+        if (j.total_disponivel != null) txt += ` (disponível na janela: ${j.total_disponivel.toLocaleString('pt-BR')})`;
+        if (j.parcial) txt += ' ⚠ import parcial — reduza a janela ou rode de novo.';
+        txt += ' Já aparecem no Dashboard e no Fechamento.';
+        msg.textContent = txt;
       } else {
         msg.className = 'msg msg-err';
         msg.textContent = 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '');

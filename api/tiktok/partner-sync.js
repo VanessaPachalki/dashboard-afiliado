@@ -306,7 +306,7 @@ export default async function handler(req, res) {
       ...assets.filter(a => !PRIORITY.includes(nameOf(a)))
     ].filter((a, i, arr) => arr.findIndex(x => x.cipher === a.cipher) === i);
 
-    let orderPath = null, endpoint = null, cipher = null, winCategory = null;
+    let orderPath = null, endpoint = null, cipher = null, winCategory = null, winCount = null;
     let fallback = null; // 1º endpoint/cipher que responde ok, mesmo vazio
     const tried = [];
     for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
@@ -319,7 +319,7 @@ export default async function handler(req, res) {
         tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, count, message: ok ? undefined : probe.message });
         if (ok) {
           if (!fallback) fallback = { path: ep.path, tag: ep.tag, cipher: a.cipher, cat: nameOf(a) };
-          if (count > 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); break; }
+          if (count > 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); winCount = count; break; }
         } else if (probe.code === 105005) {
           break; // sem escopo nesse endpoint — pula pro próximo endpoint
         }
@@ -384,6 +384,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       ok: true, imported: total, pages, endpoint, category: winCategory,
+      total_disponivel: winCount, parcial: winCount != null && total < winCount,
       creators: creatorsSet.size,
       window: { ge, lt, days },
       ...(total === 0 ? { diagnostico: tried } : {}),
