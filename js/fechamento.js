@@ -1373,7 +1373,7 @@ function escalaAddRow(iniDT, fimDT) {
   // "+ Adicionar turno": exige o turno anterior completo e encadeia +1 min
   if (!iniDT && lastTr) {
     const n = lastTr.querySelector('.es-nome').value.trim();
-    const i = lastTr.querySelector('.es-ini').value;
+    const i = lastTr.dataset.ini;                       // início = fonte estável
     const f = lastTr.querySelector('.es-fim').value;
     if (!n || !i || !f || f <= i) { setEscalaMsg('err', 'Preencha o turno atual (responsável e fim) antes de adicionar outro.'); return; }
     iniDT = addMin(f, 1);
@@ -1381,9 +1381,10 @@ function escalaAddRow(iniDT, fimDT) {
   // fim já vem com a DATA certa (= a do início) pra você só ajustar a hora
   const mm = escalaState.liveIni ? `min="${escalaState.liveIni}" max="${escalaState.liveFim}"` : '';
   const tr = document.createElement('tr');
+  tr.dataset.ini = iniDT || '';                          // início NÃO some (não é input editável)
   tr.innerHTML =
     `<td><input class="es-nome" placeholder="Nome do responsável" oninput="escalaCheckLive()"></td>
-     <td><input type="datetime-local" class="es-ini" ${mm} value="${iniDT || ''}" readonly tabindex="-1" title="Início automático (encadeado)" style="opacity:.55;cursor:not-allowed;"></td>
+     <td><span class="es-ini-lbl" style="font-size:13px;color:var(--muted);white-space:nowrap;">${iniDT ? fmtDT(iniDT) : '—'}</span></td>
      <td><input type="datetime-local" class="es-fim" ${mm} value="${fimDT || iniDT || ''}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
      <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
      <td><button class="del" title="Remover" onclick="escalaDelRow(this)">×</button></td>`;
@@ -1392,13 +1393,13 @@ function escalaAddRow(iniDT, fimDT) {
 }
 
 // re-encadeia os INÍCIOS a partir do início da live (início = fim anterior +1min).
-// Início travado -> impossível criar gap/overlap manual. Clampa no fim da live.
+// Início é rótulo fixo (dataset.ini) -> impossível apagar/perder a referência.
 function escalaRechain() {
   let prevFim = null;
   document.querySelectorAll('#escalaRows tr').forEach((tr, i) => {
-    const iniInput = tr.querySelector('.es-ini');
-    const ini = i === 0 ? escalaState.liveIni : (prevFim ? addMin(prevFim, 1) : iniInput.value);
-    if (iniInput) iniInput.value = ini;
+    const ini = i === 0 ? escalaState.liveIni : (prevFim ? addMin(prevFim, 1) : (tr.dataset.ini || escalaState.liveIni));
+    tr.dataset.ini = ini;
+    const lbl = tr.querySelector('.es-ini-lbl'); if (lbl) lbl.textContent = ini ? fmtDT(ini) : '—';
     const fimInput = tr.querySelector('.es-fim');
     let fim = fimInput.value;
     if (fim && escalaState.liveFim && fim > escalaState.liveFim) { fim = escalaState.liveFim; fimInput.value = fim; }
@@ -1406,11 +1407,11 @@ function escalaRechain() {
   });
 }
 
-// resolve o fim sem nunca apagar: se a hora ficou <= o início (madrugada numa
-// live que vira o dia), rola a DATA +1 dia sozinho; clampa no fim da live.
+// resolve o fim sem nunca apagar: se ficou <= o início (madrugada numa live que
+// vira o dia), rola a DATA +1 dia sozinho; clampa no fim da live.
 function escalaFimChange(input) {
   const tr = input.closest('tr');
-  const ini = tr.querySelector('.es-ini').value;
+  const ini = tr.dataset.ini;
   let fim = input.value;
   if (fim && ini && fim <= ini) {
     const rolled = addMin(fim, 1440); // +1 dia
@@ -1429,7 +1430,7 @@ function escalaReadRows() {
   const rows = [];
   document.querySelectorAll('#escalaRows tr').forEach(tr => {
     const nome = tr.querySelector('.es-nome').value.trim();
-    const ini = tr.querySelector('.es-ini').value;
+    const ini = tr.dataset.ini || '';
     const fim = tr.querySelector('.es-fim').value;
     let qtd = parseInt(tr.querySelector('.es-qtd').value, 10); if (!qtd || qtd < 1) qtd = 1;
     rows.push({ nome, ini, fim, qtd });
@@ -1472,7 +1473,7 @@ function escalaCalcAll() {
   if (trs.length && escalaState.liveFim) {
     const lastTr = trs[trs.length - 1];
     const lastFim = lastTr.querySelector('.es-fim');
-    const lastIni = lastTr.querySelector('.es-ini').value;
+    const lastIni = lastTr.dataset.ini;
     if (lastFim && (!lastFim.value || lastFim.value <= lastIni)) { lastFim.value = escalaState.liveFim; escalaRechain(); }
   }
   const rows = escalaReadRows();
