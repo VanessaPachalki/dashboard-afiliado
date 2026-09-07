@@ -96,7 +96,28 @@ async function initFechamento() {
     sellerAccSel.innerHTML = '<option value="">Selecione a conta</option>' + opts;
   }
 
+  await loadAuxiliaresFech();
   await loadSellers();
+}
+
+// auxiliares -> autocomplete no "Responsável" + resolução de auxiliar_id no save
+let auxByName = {};   // nome (minúsculo) -> { id, email }
+async function loadAuxiliaresFech() {
+  let q = sb.from('auxiliares').select('id,name,email').order('name');
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { data } = await q;
+  auxByName = {};
+  const opts = [];
+  (data || []).forEach(a => {
+    const key = (a.name || '').toLowerCase().trim();
+    if (key) { auxByName[key] = { id: a.id, email: a.email || null }; opts.push(`<option value="${escAttr(a.name)}">`); }
+  });
+  const dl = document.getElementById('auxDatalist');
+  if (dl) dl.innerHTML = opts.join('');
+}
+function escalaNomeCheck(input) {
+  const badge = input.parentElement.querySelector('.es-aux-badge');
+  if (badge) badge.style.display = auxByName[(input.value || '').toLowerCase().trim()] ? '' : 'none';
 }
 
 // ---- Combobox de busca do Creator Host ----
@@ -1229,6 +1250,7 @@ async function abrirLiveSalva(id) {
       if (last) {
         last.querySelector('.es-nome').value = t.nome || '';
         last.querySelector('.es-qtd').value = t.qtd || 1;
+        escalaNomeCheck(last.querySelector('.es-nome'));
       }
     });
     escalaCheckLive();
@@ -1384,7 +1406,7 @@ function escalaAddRow(iniDT, fimDT) {
   const tr = document.createElement('tr');
   tr.dataset.ini = iniDT || '';                          // início NÃO some (não é input editável)
   tr.innerHTML =
-    `<td><input class="es-nome" placeholder="Nome do responsável" oninput="escalaCheckLive()"></td>
+    `<td><input class="es-nome" list="auxDatalist" placeholder="Nome do responsável" oninput="escalaNomeCheck(this);escalaCheckLive()"><span class="es-aux-badge" style="display:none;font-size:10px;color:var(--green);margin-left:6px;white-space:nowrap;">✓ auxiliar</span></td>
      <td><span class="es-ini-lbl" style="font-size:13px;color:var(--muted);white-space:nowrap;">${iniDT ? fmtDT(iniDT) : '—'}</span></td>
      <td><input type="datetime-local" class="es-fim" ${mm} value="${fimDT || iniDT || ''}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
      <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
@@ -1418,7 +1440,8 @@ function escalaReadRows() {
     const ini = tr.dataset.ini || '';
     const fim = tr.querySelector('.es-fim').value;
     let qtd = parseInt(tr.querySelector('.es-qtd').value, 10); if (!qtd || qtd < 1) qtd = 1;
-    rows.push({ nome, ini, fim, qtd });
+    const aux = auxByName[nome.toLowerCase()];
+    rows.push({ nome, ini, fim, qtd, auxiliar_id: aux ? aux.id : null, auxiliar_email: aux ? aux.email : null });
   });
   return rows;
 }
@@ -1785,9 +1808,11 @@ async function excluirEConfirmar() {
 async function doSaveLive(name) {
   const s = escalaState;
   const uid = await myUid();
+  const auxEmails = [...new Set((s.results || []).map(r => r.auxiliar_email).filter(Boolean))];
   const { error } = await sb.from('lives').insert({
     agency_id: agencyId(), owner_id: uid, account_id: s.accountId,
-    name, start_dt: s.liveIni, end_dt: s.liveFim, pct: s.pct, turnos: s.results
+    name, start_dt: s.liveIni, end_dt: s.liveFim, pct: s.pct, turnos: s.results,
+    auxiliar_emails: auxEmails.length ? auxEmails : null
   });
   if (error) { document.getElementById('saveConflito').innerHTML = sbBanner('err', '⚠', 'Erro ao salvar: ' + error.message); return; }
   closeSaveModal();
