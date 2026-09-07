@@ -532,7 +532,7 @@ function renderOrdersDetail() {
       <td style="padding:7px 10px;">${o._resp ? esc(o._resp) : '<span style="color:var(--muted);">sem turno</span>'}</td>
       <td style="padding:7px 10px;">${esc((o.product_name || '').slice(0, 42))}</td>
       <td style="padding:7px 10px;color:var(--muted);">${esc(o.store_name || '')}</td>
-      <td style="padding:7px 10px;"><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:${c}22;color:${c};">${GRAN_LABEL[k] || k}</span></td>
+      <td style="padding:7px 10px;"><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:${c}22;color:${c};">${GRAN_LABEL[k] || k}</span>${o.aftersale_reason ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;max-width:180px;">${esc(o.aftersale_reason)}${o.aftersale_role ? ' · ' + esc(String(o.aftersale_role).toLowerCase()) : ''}</div>` : ''}</td>
       <td class="r" style="padding:7px 10px;color:var(--muted);">${fmtBRL(o.estimated_commission)}</td>
       <td class="r" style="padding:7px 10px;font-weight:600;color:var(--green);">${fmtBRL(o.received_commission)}</td>
       <td class="r" style="padding:7px 10px;">${fmtBRL(o.gmv)}</td>

@@ -35,6 +35,30 @@
   </div>
 </div>
 
+<!-- Sellers (motivos de devolução/cancelamento) -->
+<div class="admin-section">
+  <h2>Lojas dos sellers — motivos de pós-venda</h2>
+  <p style="color:var(--muted);margin:0 0 12px;font-size:14px;">
+    Opcional. Quando um <strong>seller</strong> autoriza o app, dá pra puxar o
+    <strong>motivo real</strong> de cada cancelamento/devolução (ex: "cliente mudou de ideia")
+    e casar com seus pedidos inelegíveis. Cada loja autoriza uma vez.
+  </p>
+  <details style="margin-bottom:12px;">
+    <summary style="cursor:pointer;font-size:13px;color:var(--orange);font-weight:600;">Como ligar (pré-requisitos)</summary>
+    <ol style="color:var(--muted);font-size:13px;line-height:1.7;margin:8px 0 0;padding-left:20px;">
+      <li>No Partner Center: <strong>App &amp; Service &gt; Manage &gt; Manage API</strong> — habilite o pacote <strong>Return &amp; Refund</strong>.</li>
+      <li>Pegue o <strong>link de autorização do app</strong> (redirect = nosso callback) e envie ao seller.</li>
+      <li>O seller abre o link e autoriza. A loja aparece na lista abaixo automaticamente.</li>
+      <li>Dado de pedido é "Protected Data" — pode exigir revisão de segurança (DSPR) no app.</li>
+    </ol>
+  </details>
+  <div id="sellersList" style="font-size:13px;color:var(--muted);">Carregando lojas...</div>
+  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
+    <button class="btn-sm" id="reasonsBtn" onclick="buscarMotivos()">Buscar motivos (últimos 90 dias)</button>
+  </div>
+  <div id="reasonsMsg" class="msg" style="margin-top:10px;"></div>
+</div>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -57,8 +81,50 @@
     `<div><strong style="color:var(--text);">${esc((window.AGENCY && window.AGENCY.name) || 'Agência')}</strong></div>
      <div style="margin-top:4px;">${esc(session.user.email || '')}</div>`;
   await loadTiktokPartner();
+  await loadSellers();
   showTiktokPartnerReturn();
 })();
+
+// ---- Sellers (motivos de pós-venda) ----
+async function loadSellers() {
+  const el = document.getElementById('sellersList');
+  if (!el) return;
+  try {
+    const { data } = await sb.from('tiktok_sellers').select('shop_name,region,connected_at').order('connected_at');
+    if (!data || !data.length) {
+      el.innerHTML = 'Nenhuma loja conectada ainda. Envie o link de autorização a um seller.';
+      return;
+    }
+    el.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px;">' + data.map(s =>
+      `<div style="display:flex;align-items:center;gap:8px;">
+         <span style="width:8px;height:8px;border-radius:50%;background:var(--green);"></span>
+         <strong style="color:var(--text);">${esc(s.shop_name || 'Loja')}</strong>
+         <span style="color:var(--muted);">${esc(s.region || '')}</span>
+       </div>`).join('') + '</div>';
+  } catch (e) {
+    el.innerHTML = 'Nenhuma loja conectada ainda.';
+  }
+}
+
+async function buscarMotivos() {
+  const btn = document.getElementById('reasonsBtn');
+  const msg = document.getElementById('reasonsMsg');
+  const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { set('msg-err', 'Faça login de novo.'); return; }
+  if (btn) btn.disabled = true;
+  set('', 'Buscando motivos nas lojas conectadas...');
+  try {
+    const r = await fetch('/api/tiktok/seller-reasons?days=90', { headers: { Authorization: 'Bearer ' + session.access_token } });
+    const j = await r.json();
+    if (!j.ok) { set('msg-err', 'Erro: ' + (j.error || j.message || 'desconhecido')); return; }
+    set('msg-ok', `Pronto! ${j.motivos_encontrados} motivo(s) em ${j.shops} loja(s); ${j.pedidos_atualizados} pedido(s) atualizados. Já aparecem nos detalhes do fechamento.`);
+  } catch (e) {
+    set('msg-err', 'Falha ao buscar motivos: ' + e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 // ---- TikTok Partner (matriz) ----
 const TT_SERVICE_ID = '7682323669678786312';
@@ -143,6 +209,8 @@ function showTiktokPartnerReturn() {
   if (!el) return;
   const map = {
     partner_connected: ['msg-ok', 'TikTok conectado! Agora clique em "Sincronizar pedidos".'],
+    seller_connected: ['msg-ok', 'Loja do seller conectada! Já dá pra buscar os motivos de pós-venda.'],
+    no_shops: ['msg-err', 'Seller autorizou mas nenhuma loja veio — confira o escopo Return & Refund no app.'],
     no_cipher: ['msg-err', 'Conectou mas não veio o cipher — confira os escopos partner do app.'],
     denied: ['msg-err', 'Autorização cancelada.'],
     misconfig: ['msg-err', 'Integração não configurada (env vars na Vercel).'],

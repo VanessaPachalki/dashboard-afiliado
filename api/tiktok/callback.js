@@ -86,12 +86,54 @@ async function handlePartner(d, back) {
   return back('partner_connected');
 }
 
+// ---- Seller: pega os shops autorizados (shop_cipher) e salva por loja ----
+async function handleSeller(d, back) {
+  const appKey = process.env.TIKTOK_APP_KEY;
+  const appSecret = process.env.TIKTOK_APP_SECRET;
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // GET /authorization/202309/shops (assinado) -> shops[] com cipher
+  const path = '/authorization/202309/shops';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const query = { app_key: appKey, timestamp };
+  query.sign = signRequest(path, query, '', appSecret);
+  const qs = Object.entries(query).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const j = await (await fetch(`${API_HOST}${path}?${qs}`, {
+    headers: { 'content-type': 'application/json', 'x-tts-access-token': d.access_token }
+  })).json();
+  if (j && j.code !== 0) console.error('get shops code:', j.code, j.message);
+  const shops = (j && j.data && j.data.shops) || [];
+  if (!shops.length) { console.error('seller sem shops:', JSON.stringify(j)); return back('no_shops'); }
+
+  // agência BRX pra pendurar as lojas
+  const agRows = await (await fetch(`${SUPABASE_URL}/rest/v1/agencies?slug=eq.brx&select=id&limit=1`, {
+    headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }
+  })).json();
+  const agencyId = Array.isArray(agRows) && agRows[0] ? agRows[0].id : null;
+  const scopes = Array.isArray(d.granted_scopes) ? d.granted_scopes.join(',') : (d.granted_scopes || null);
+
+  for (const s of shops) {
+    const up = await sbUpsert('tiktok_sellers', 'shop_id', {
+      shop_id: String(s.id), shop_cipher: s.cipher, shop_name: s.name || null,
+      region: s.region || null, seller_type: s.seller_type || null,
+      access_token: d.access_token, refresh_token: d.refresh_token || null,
+      access_expire_at: isoIn(d.access_token_expire_in),
+      refresh_expire_at: isoIn(d.refresh_token_expire_in),
+      scopes, agency_id: agencyId, updated_at: new Date().toISOString()
+    });
+    if (!up.ok) { console.error('upsert tiktok_sellers falhou:', up.status, await up.text()); return back('error'); }
+  }
+  return back('seller_connected');
+}
+
 export default async function handler(req, res) {
   const APP_URL = process.env.APP_URL || '';
   const { code, state, error } = req.query;
   const isPartner = state === 'partner';
   const dest = isPartner ? 'conta.html' : 'upload.html';
   const back = (status) => res.redirect(302, `${APP_URL}/${dest}?tiktok=${status}`);
+  const backConta = (status) => res.redirect(302, `${APP_URL}/conta.html?tiktok=${status}`);
 
   try {
     if (error || !code) return back('denied');
@@ -104,6 +146,9 @@ export default async function handler(req, res) {
 
     // ===== Fluxo Partner (matriz) =====
     if (isPartner) return await handlePartner(d, back);
+
+    // ===== Fluxo Seller (dono de loja autoriza; user_type = 0) =====
+    if (Number(d.user_type) === 0) return await handleSeller(d, backConta);
 
     // ===== Fluxo Creator =====
     if (!state) return back('denied');
