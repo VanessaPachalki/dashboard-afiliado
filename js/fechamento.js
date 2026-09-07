@@ -748,7 +748,8 @@ function nomeArquivo(d, ext) {
   return `fechamento_${creator}${data ? '_' + data : ''}.${ext}`;
 }
 
-function baixarPdf(d) {
+function pdfBlob(d) {
+ return new Promise(resolve => {
   const creator = d.creator || '—';
   const qty = (d.qty && d.qty > 1) ? d.qty : 1;
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -808,7 +809,7 @@ function baixarPdf(d) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
     doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
 
-    doc.save(nomeArquivo(d, 'pdf'));
+    resolve(doc.output('blob'));
   };
 
   if (logoUrl) {
@@ -817,9 +818,20 @@ function baixarPdf(d) {
     img.onerror = () => render(null);
     img.src = logoUrl;
   } else render(null);
+ });
+}
+function baixarPdf(d) {
+  pdfBlob(d).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArquivo(d, 'pdf');
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
 }
 
-function baixarImagem(d) {
+function imagemBlob(d) {
+ return new Promise(resolve => {
   const creator = d.creator || '—';
   const qty = (d.qty && d.qty > 1) ? d.qty : 1;
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -880,13 +892,7 @@ function baixarImagem(d) {
     const out = document.createElement('canvas');
     out.width = W; out.height = finalH;
     out.getContext('2d').drawImage(canvas, 0, 0);
-    out.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = nomeArquivo(d, 'png');
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-    }, 'image/png');
+    out.toBlob(blob => resolve(blob), 'image/png');
   };
 
   const drawName = () => {
@@ -906,6 +912,16 @@ function baixarImagem(d) {
     img.onerror = () => { drawName(); exportar(); };
     img.src = logoUrl;
   } else { drawName(); exportar(); }
+ });
+}
+function baixarImagem(d) {
+  imagemBlob(d).then(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = nomeArquivo(d, 'png');
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
 }
 
 // ===== POPUP DE EXPORT (nome + quantidade de creators) =====
@@ -1381,10 +1397,17 @@ function renderEscalaResults() {
       <td class="r">${r.qtd > 1 ? fmtBRL(r.porCreator) : '—'}</td>
       <td class="r" style="white-space:nowrap;"><button class="btn-sm" onclick="reportRow(${i},'img')">Img</button> <button class="btn-sm" onclick="reportRow(${i},'pdf')">PDF</button></td>
     </tr>`).join('');
+  const totRecebida = rows.reduce((s, r) => s + r.recebida, 0);
+  const totalRow = `<tr style="border-top:2px solid var(--border);">
+      <td colspan="4" style="text-align:right;padding:12px 8px;font-weight:800;">TOTAL A PAGAR</td>
+      <td class="r" style="padding:12px 8px;font-weight:700;">${fmtBRL(totRecebida)}</td>
+      <td class="r" style="padding:12px 8px;"><strong style="color:var(--orange);font-size:16px;">${fmtBRL(totPagar)}</strong></td>
+      <td></td><td></td>
+    </tr>`;
   document.getElementById('escalaResults').innerHTML =
     `<div style="overflow-x:auto;"><table class="escala-table">
       <thead><tr><th>Responsável</th><th>Turno</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">Recebida</th><th class="r">A pagar</th><th class="r">P/ creator</th><th></th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+      <tbody>${body}${totalRow}</tbody></table></div>`;
 }
 
 function reportDataRow(r) {
@@ -1402,10 +1425,26 @@ function reportRow(i, kind) {
 }
 async function gerarTodos(kind) {
   const rows = escalaState.results || [];
-  for (let i = 0; i < rows.length; i++) {
-    reportRow(i, kind);
-    await new Promise(res => setTimeout(res, 700));
+  if (!rows.length) { toast('err', 'Calcule a escala primeiro.'); return; }
+  const ext = kind === 'pdf' ? 'pdf' : 'png';
+  if (typeof JSZip === 'undefined') { // fallback: um a um
+    for (let i = 0; i < rows.length; i++) { reportRow(i, kind); await new Promise(r => setTimeout(r, 800)); }
+    return;
   }
+  toast('ok', `Gerando ${rows.length} relatório(s)...`);
+  const zip = new JSZip();
+  for (let i = 0; i < rows.length; i++) {
+    const d = reportDataRow(rows[i]);
+    const blob = kind === 'pdf' ? await pdfBlob(d) : await imagemBlob(d);
+    zip.file(`${String(i + 1).padStart(2, '0')}_${nomeArquivo(d, ext)}`, blob);
+  }
+  const content = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(content);
+  const a = document.createElement('a');
+  a.href = url; a.download = `fechamento_${(escalaState.liveIni || '').slice(0, 10)}.zip`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('ok', `Pronto! ${rows.length} relatório(s) no ZIP (pasta).`);
 }
 
 // abre o modal de salvar (pede nome da live)
