@@ -243,6 +243,25 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
+    // DEBUG=tz: busca 1 pedido por order_id e mostra create_time em UTC e Brasília
+    if (req.query.debug === 'tz') {
+      const orderId = String(req.query.order_id || '');
+      const data = await signedPost(CAP_ORDER_PATH,
+        { category_asset_cipher: part.category_asset_cipher, page_size: '10' },
+        { order_id: orderId }, accessToken);
+      const list = (data.data && data.data.sku_orders) || [];
+      const fmtBR = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      });
+      const out = list.slice(0, 5).map(so => ({
+        id: so.id, sku_id: so.sku_id, create_time: so.create_time,
+        utc: new Date((so.create_time || 0) * 1000).toISOString(),
+        brasilia: fmtBR.format(new Date((so.create_time || 0) * 1000))
+      }));
+      return res.status(200).json({ debug: 'tz', order_id: orderId, code: data.code, message: data.message, orders: out });
+    }
+
     // DEBUG=verify: puxa a API e agrega UM creator (compara com o xlsx). Não grava nada.
     if (req.query.debug === 'verify') {
       const creator = String(req.query.creator || '').toLowerCase();
@@ -293,7 +312,7 @@ export default async function handler(req, res) {
     }
 
     // DEBUG: dump da resposta crua de category_assets (mercados + ids)
-    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample' && req.query.debug !== 'verify') {
+    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample' && req.query.debug !== 'verify' && req.query.debug !== 'tz') {
       const path = '/authorization/202405/category_assets';
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
