@@ -345,7 +345,7 @@ body.has-nav .nav-footer .logout:hover { color:var(--orange); background:var(--c
 .mm-title { text-align:center; font-size:12px; font-weight:700; text-transform:capitalize; margin-bottom:6px; color:var(--text); }
 .mm-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
 .mm-wd { text-align:center; font-size:7px; color:var(--muted); font-weight:700; }
-.mm-day { aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:9px; border-radius:4px; color:var(--muted); }
+.mm-day { height:var(--mm-h,27px); display:flex; align-items:center; justify-content:center; font-size:var(--mm-fs,9px); border-radius:4px; color:var(--muted); overflow:hidden; }
 .mm-day.has { cursor:pointer; font-weight:700; }
 .mm-day.final { background:rgba(60,179,113,0.16); color:var(--green); }
 .mm-day.pend { background:var(--orange-soft); color:var(--orange); }
