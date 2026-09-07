@@ -313,66 +313,69 @@ export default async function handler(req, res) {
     const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
     const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
 
-    // 4.1) descobre a categoria/cipher certa + o endpoint que funciona.
-    // Cada categoria tem seu cipher; o de pedidos de afiliado é o de
-    // "Affiliate Management"/creators — não o [0] (que era "Connectors").
-    const assets = (await getCategoryAssets(accessToken))
-      .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
-    const PRIORITY = [
-      'Affiliate Management', 'Seller and Scalable Creator Match-Up',
-      'Creator collaborations', 'Creator Management', 'Mass Recruiting', 'Mass Tutoring'
-    ];
-    const nameOf = a => (a.category && a.category.name) || '';
-    // ordena: candidatos de afiliado primeiro (na ordem), depois o resto.
-    // e coloca o cipher já salvo na frente (fast path em syncs repetidos).
-    const ordered = [
-      ...(part.category_asset_cipher ? assets.filter(a => a.cipher === part.category_asset_cipher) : []),
-      ...PRIORITY.map(n => assets.find(a => nameOf(a) === n)).filter(Boolean),
-      ...assets.filter(a => !PRIORITY.includes(nameOf(a)))
-    ].filter((a, i, arr) => arr.findIndex(x => x.cipher === a.cipher) === i);
-
-    let orderPath = null, endpoint = null, cipher = null, winCategory = null, winCount = null;
-    let fallback = null; // 1º endpoint/cipher que responde ok, mesmo vazio
+    // 4.1) endpoint/cipher. Na CONTINUAÇÃO (lote seguinte) vêm por query,
+    // pulando a descoberta. Na 1ª chamada, descobre a categoria certa.
+    let orderPath, endpoint, cipher, winCategory = null, winCount = null;
     const tried = [];
-    for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
-      for (const a of ordered) {
-        const probe = await signedPost(ep.path,
-          { category_asset_cipher: a.cipher, page_size: '1' },
-          { create_time_ge: ge, create_time_lt: lt }, accessToken);
-        const ok = !probe.code || probe.code === 0;
-        const count = ok && probe.data ? (probe.data.total_count ?? (probe.data.orders || []).length) : null;
-        tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, count, message: ok ? undefined : probe.message });
-        if (ok) {
-          if (!fallback) fallback = { path: ep.path, tag: ep.tag, cipher: a.cipher, cat: nameOf(a) };
-          if (count > 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); winCount = count; break; }
-        } else if (probe.code === 105005) {
-          break; // sem escopo nesse endpoint — pula pro próximo endpoint
+    if (req.query.cipher && (req.query.endpoint === 'cap' || req.query.endpoint === 'tap')) {
+      cipher = req.query.cipher;
+      endpoint = req.query.endpoint;
+      orderPath = endpoint === 'tap' ? TAP_ORDER_PATH : CAP_ORDER_PATH;
+    } else {
+      const assets = (await getCategoryAssets(accessToken))
+        .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
+      const PRIORITY = [
+        'Affiliate Management', 'Seller and Scalable Creator Match-Up',
+        'Creator collaborations', 'Creator Management', 'Mass Recruiting', 'Mass Tutoring'
+      ];
+      const nameOf = a => (a.category && a.category.name) || '';
+      const ordered = [
+        ...(part.category_asset_cipher ? assets.filter(a => a.cipher === part.category_asset_cipher) : []),
+        ...PRIORITY.map(n => assets.find(a => nameOf(a) === n)).filter(Boolean),
+        ...assets.filter(a => !PRIORITY.includes(nameOf(a)))
+      ].filter((a, i, arr) => arr.findIndex(x => x.cipher === a.cipher) === i);
+
+      let fallback = null;
+      for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
+        for (const a of ordered) {
+          const probe = await signedPost(ep.path,
+            { category_asset_cipher: a.cipher, page_size: '1' },
+            { create_time_ge: ge, create_time_lt: lt }, accessToken);
+          const ok = !probe.code || probe.code === 0;
+          const count = ok && probe.data ? (probe.data.total_count ?? (probe.data.sku_orders || probe.data.orders || []).length) : null;
+          tried.push({ endpoint: ep.tag, category: nameOf(a), code: probe.code, count, message: ok ? undefined : probe.message });
+          if (ok) {
+            if (!fallback) fallback = { path: ep.path, tag: ep.tag, cipher: a.cipher, cat: nameOf(a) };
+            if (count > 0) { orderPath = ep.path; endpoint = ep.tag; cipher = a.cipher; winCategory = nameOf(a); winCount = count; break; }
+          } else if (probe.code === 105005) {
+            break;
+          }
         }
+        if (cipher) break;
       }
-      if (cipher) break;
-    }
-    // se nenhuma categoria trouxe pedidos, usa a 1ª válida (importa 0, mas não erra)
-    if (!cipher && fallback) { orderPath = fallback.path; endpoint = fallback.tag; cipher = fallback.cipher; winCategory = fallback.cat; }
-    if (!cipher) {
-      return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried });
-    }
-    // salva o cipher vencedor pra acelerar as próximas sincronizações
-    if (cipher !== part.category_asset_cipher) {
-      await sb('tiktok_partner?id=eq.1', {
-        method: 'PATCH',
-        body: JSON.stringify({ category_asset_cipher: cipher, updated_at: new Date().toISOString() })
-      });
+      if (!cipher && fallback) { orderPath = fallback.path; endpoint = fallback.tag; cipher = fallback.cipher; winCategory = fallback.cat; }
+      if (!cipher) {
+        return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried });
+      }
+      if (cipher !== part.category_asset_cipher) {
+        await sb('tiktok_partner?id=eq.1', {
+          method: 'PATCH',
+          body: JSON.stringify({ category_asset_cipher: cipher, updated_at: new Date().toISOString() })
+        });
+      }
     }
 
-    // 5) paginação
-    let pageToken = '';
+    // 5) paginação em LOTE: page_size 100, até max_pages por chamada.
+    // Começa do page_token recebido (continuação) e devolve o próximo cursor.
+    const maxPages = Math.max(1, Math.min(60, parseInt(req.query.max_pages, 10) || 20));
+    let pageToken = req.query.page_token || '';
     let total = 0, pages = 0;
     let sample = null;
     const creatorsSet = new Set();
-    do {
+    while (pages < maxPages) {
       const query = {
         category_asset_cipher: cipher,
-        page_size: '50',
+        page_size: '100',
         ...(pageToken ? { page_token: pageToken } : {})
       };
       const data = await signedPost(orderPath, query, { create_time_ge: ge, create_time_lt: lt }, accessToken);
@@ -380,9 +383,8 @@ export default async function handler(req, res) {
         return res.status(502).json({ error: 'tiktok api', code: data.code, message: data.message, request_id: data.request_id, endpoint });
       }
       const list = (data.data && (data.data.sku_orders || data.data.orders)) || [];
-      if (!sample && list[0]) sample = list[0]; // 1º item cru pra conferência
+      if (!sample && list[0]) sample = list[0];
       const rows = list.map(o => mapSkuOrder(o, matrizUid, uploadId));
-      // atribui cada linha à conta do creator (por @username) + agência BRX
       for (const r of rows) {
         r.account_id = await resolveAccount(r.creator_username);
         r.agency_id = agencyId;
@@ -399,22 +401,26 @@ export default async function handler(req, res) {
       }
       pageToken = (data.data && data.data.next_page_token) || '';
       pages++;
-    } while (pageToken && pages < 200);
+      if (!pageToken) break;
+    }
+    const done = !pageToken;
 
-    // atualiza contagem do bucket
     await sb(`uploads?id=eq.${uploadId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ row_count: total, uploaded_at: new Date().toISOString() })
+      method: 'PATCH', body: JSON.stringify({ uploaded_at: new Date().toISOString() })
     });
 
     return res.status(200).json({
-      ok: true, imported: total, pages, endpoint, category: winCategory,
-      total_disponivel: winCount, parcial: winCount != null && total < winCount,
-      creators: creatorsSet.size,
-      window: { ge, lt, days },
-      ...(total === 0 ? { diagnostico: tried } : {}),
-      sample: sample ? { id: sample.id, status: sample.status, create_time: sample.create_time,
-        skus_type: Array.isArray(sample.skus) ? 'array' : typeof sample.skus } : null
+      ok: true, imported: total, pages, done, next_page_token: pageToken || null,
+      endpoint, cipher, category: winCategory,
+      total_disponivel: winCount, creators: creatorsSet.size,
+      window: { ge, lt },
+      ...(total === 0 && tried.length ? { diagnostico: tried } : {}),
+      sample: sample ? {
+        creator: sample.creator_username, status: sample.settle_status,
+        gmv: sample.price && sample.price.amount,
+        estimada: sample.estimated_standard_commission && sample.estimated_standard_commission.amount,
+        recebida: sample.actual_standard_commission && sample.actual_standard_commission.amount
+      } : null
     });
   } catch (e) {
     console.error('partner-sync erro:', e);

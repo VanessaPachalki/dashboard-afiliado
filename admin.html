@@ -130,36 +130,42 @@ async function syncTiktokPartner() {
   const to = document.getElementById('ttSyncTo')?.value;
   const uid = await myUid();
   if (!uid) return;
-  // range em horário de Brasília (UTC-3). Sem datas => último 1 dia.
-  let qs = `owner=${encodeURIComponent(uid)}`;
+  // janela FIXA em horário de Brasília (UTC-3) — igual em todos os lotes.
+  let ge, lt;
   if (from) {
-    const ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
+    ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
     const endDay = to || from;
-    const lt = Math.floor(new Date(endDay + 'T00:00:00-03:00').getTime() / 1000) + 86400; // fim do dia "até"
-    qs += `&ge=${ge}&lt=${lt}`;
+    lt = Math.floor(new Date(endDay + 'T00:00:00-03:00').getTime() / 1000) + 86400;
   } else {
-    qs += '&days=1';
+    const now = Math.floor(Date.now() / 1000);
+    ge = now - 86400; lt = now;
   }
+  const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
+
   if (btn) btn.disabled = true;
-  if (msg) { msg.className = 'msg'; msg.textContent = 'Sincronizando com a TikTok... (pode levar alguns segundos)'; }
+  const setMsg = (cls, txt) => { if (msg) { msg.className = 'msg ' + cls; msg.textContent = txt; } };
+  setMsg('', 'Sincronizando com a TikTok...');
+
+  let pageToken = null, cipher = null, endpoint = null;
+  let grand = 0, batches = 0, totalDisp = null;
   try {
-    const r = await fetch(`/api/tiktok/partner-sync?${qs}`);
-    const j = await r.json();
-    if (msg) {
-      if (j.ok) {
-        msg.className = 'msg msg-ok';
-        let txt = `Importados ${j.imported} itens de ${j.creators} creator(s).`;
-        if (j.total_disponivel != null) txt += ` (disponível na janela: ${j.total_disponivel.toLocaleString('pt-BR')})`;
-        if (j.parcial) txt += ' ⚠ import parcial — reduza a janela ou rode de novo.';
-        txt += ' Já aparecem no Dashboard e no Fechamento.';
-        msg.textContent = txt;
-      } else {
-        msg.className = 'msg msg-err';
-        msg.textContent = 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '');
-      }
+    while (batches < 1000) {
+      let url = `/api/tiktok/partner-sync?${base}`;
+      if (pageToken) url += `&page_token=${encodeURIComponent(pageToken)}&cipher=${encodeURIComponent(cipher)}&endpoint=${encodeURIComponent(endpoint)}`;
+      const j = await (await fetch(url)).json();
+      if (!j.ok) { setMsg('msg-err', 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '')); return; }
+      grand += j.imported || 0;
+      cipher = j.cipher || cipher;
+      endpoint = j.endpoint || endpoint;
+      if (j.total_disponivel != null) totalDisp = j.total_disponivel;
+      batches++;
+      setMsg('', `Importando... ${grand.toLocaleString('pt-BR')} pedidos${totalDisp ? ' de ~' + totalDisp.toLocaleString('pt-BR') : ''} (lote ${batches})`);
+      if (j.done || !j.next_page_token) break;
+      pageToken = j.next_page_token;
     }
+    setMsg('msg-ok', `Pronto! ${grand.toLocaleString('pt-BR')} pedidos importados. Já aparecem no Dashboard e no Fechamento.`);
   } catch (e) {
-    if (msg) { msg.className = 'msg msg-err'; msg.textContent = 'Falha ao sincronizar.'; }
+    setMsg('msg-err', `Interrompido após ${grand.toLocaleString('pt-BR')} pedidos. Clique em Sincronizar de novo para continuar.`);
   } finally {
     if (btn) btn.disabled = false;
   }
