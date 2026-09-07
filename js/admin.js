@@ -10,6 +10,20 @@ function fmtBRL(v) {
 
 // ===== Auxiliares (cadastro com dados de pagamento) =====
 let _aux = [];
+let _auxAccMap = {};   // id -> nome da conta/creator (da base da API)
+async function loadAuxAccounts() {
+  const sel = document.getElementById('auxAccount');
+  let q = sb.from('accounts').select('id,name').order('name');
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { data } = await q;
+  _auxAccMap = {};
+  (data || []).forEach(a => { _auxAccMap[a.id] = a.name; });
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— nenhum —</option>' + (data || []).map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+}
 async function loadAuxiliares() {
   let q = sb.from('auxiliares').select('*').order('name');
   if (agencyId()) q = q.eq('agency_id', agencyId());
@@ -25,7 +39,7 @@ function renderAuxiliares() {
   el.innerHTML = _aux.map(a => `
     <div class="card" style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:8px;">
       <div style="font-size:13px;min-width:0;">
-        <strong style="color:var(--text);">${esc(a.name)}</strong>${a.email ? `<span style="color:var(--muted);"> · ${esc(a.email)}</span>` : ''}
+        <strong style="color:var(--text);">${esc(a.name)}</strong>${a.email ? `<span style="color:var(--muted);"> · ${esc(a.email)}</span>` : ''}${a.account_id && _auxAccMap[a.account_id] ? `<span style="color:var(--orange);"> · ${esc(_auxAccMap[a.account_id])}</span>` : ''}
         <div style="color:var(--muted);margin-top:4px;">
           ${a.pix_key ? `PIX${a.pix_type ? ' (' + esc(a.pix_type) + ')' : ''}: <strong style="color:var(--text);">${esc(a.pix_key)}</strong>` : '<span style="opacity:.7;">sem PIX</span>'}${a.bank_name ? ` · ${esc(a.bank_name)} ag ${esc(a.bank_agency || '-')} cc ${esc(a.bank_account || '-')}` : ''}${a.phone ? ` · ${esc(a.phone)}` : ''}
         </div>
@@ -41,6 +55,7 @@ function _auxVal(id) { const e = document.getElementById(id); return e ? e.value
 function resetAuxForm() {
   ['auxId', 'auxNome', 'auxEmail', 'auxTel', 'auxPix', 'auxBank', 'auxAg', 'auxConta', 'auxObs'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   const p = document.getElementById('auxPixType'); if (p) p.value = '';
+  const acc = document.getElementById('auxAccount'); if (acc) acc.value = '';
   const m = document.getElementById('auxMsg'); if (m) { m.className = 'msg'; m.textContent = ''; }
   const det = document.getElementById('auxPayDetails'); if (det) det.open = false;
 }
@@ -59,6 +74,7 @@ async function saveAuxiliar() {
     bank_agency: _auxVal('auxAg') || null,
     bank_account: _auxVal('auxConta') || null,
     notes: _auxVal('auxObs') || null,
+    account_id: (document.getElementById('auxAccount') || {}).value || null,
     agency_id: agencyId() || null,
     updated_at: new Date().toISOString()
   };
@@ -83,6 +99,7 @@ function editAuxiliar(id) {
   put('auxId', a.id); put('auxNome', a.name); put('auxEmail', a.email); put('auxTel', a.phone);
   put('auxPix', a.pix_key); put('auxBank', a.bank_name); put('auxAg', a.bank_agency); put('auxConta', a.bank_account); put('auxObs', a.notes);
   const p = document.getElementById('auxPixType'); if (p) p.value = a.pix_type || '';
+  const acc = document.getElementById('auxAccount'); if (acc) acc.value = a.account_id || '';
   const hasPay = a.phone || a.pix_key || a.bank_name || a.bank_agency || a.bank_account || a.notes || a.pix_type;
   const det = document.getElementById('auxPayDetails'); if (det) det.open = !!hasPay;
   document.getElementById('auxNome').focus();

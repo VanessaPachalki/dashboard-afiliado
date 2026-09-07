@@ -22,6 +22,9 @@ create table if not exists public.auxiliares (
   updated_at   timestamptz default now()
 );
 
+-- vínculo opcional a uma conta/creator da base (Creator Host) — guarda o id.
+alter table public.auxiliares add column if not exists account_id uuid;
+
 -- PII + dado financeiro: só matriz.
 alter table public.auxiliares enable row level security;
 alter table public.auxiliares force row level security;

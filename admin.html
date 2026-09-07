@@ -34,6 +34,7 @@
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
       <label class="aux-fld">Nome<input type="text" id="auxNome"></label>
       <label class="aux-fld">E-mail (libera acesso)<input type="email" id="auxEmail"></label>
+      <label class="aux-fld">Creator vinculado (opcional)<select id="auxAccount"><option value="">— nenhum —</option></select></label>
     </div>
     <details id="auxPayDetails" style="margin-top:10px;">
       <summary style="cursor:pointer;font-size:12px;color:var(--orange);font-weight:600;">Dados de pagamento (o auxiliar preenche no perfil — edite aqui se precisar)</summary>
@@ -102,6 +103,7 @@
   }
   await renderNav('admin');
   await loadAdmin();
+  await loadAuxAccounts();
   await loadAuxiliares();
 })();
 </script>
