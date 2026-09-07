@@ -249,6 +249,31 @@ export default async function handler(req, res) {
       return res.status(200).json({ debug: true, scopes: part.scopes, stored_cipher: part.category_asset_cipher, category_assets: caj });
     }
 
+    // DEBUG=probe: testa CAP e TAP em cada categoria e conta os pedidos (sem importar)
+    if (req.query.debug === 'probe') {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 60));
+      const ge = nowSec - days * 86400, lt = nowSec;
+      const assets = (await getCategoryAssets(accessToken))
+        .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
+      const nm = a => (a.category && a.category.name) || '';
+      const out = [];
+      for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
+        for (const a of assets) {
+          const probe = await signedPost(ep.path,
+            { category_asset_cipher: a.cipher, page_size: '1' },
+            { create_time_ge: ge, create_time_lt: lt }, accessToken);
+          const ok = !probe.code || probe.code === 0;
+          out.push({ endpoint: ep.tag, category: nm(a), code: probe.code,
+            count: ok && probe.data ? (probe.data.total_count ?? (probe.data.orders || []).length) : null,
+            message: ok ? undefined : probe.message });
+        }
+      }
+      // resumo: só o que tem pedido
+      const comPedidos = out.filter(r => r.count > 0);
+      return res.status(200).json({ debug: 'probe', window: { ge, lt, days }, comPedidos, todas: out });
+    }
+
     // 3) agência BRX + upload bucket + resolvedor de conta por creator
     const agencyId = await getAgencyId();
     if (!agencyId) return res.status(500).json({ error: 'agência BRX não encontrada' });
