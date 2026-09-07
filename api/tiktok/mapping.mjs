@@ -27,6 +27,38 @@ export function brParts(unixSec) {
   return { order_date, month: `${p.year}-${p.month}`, hour, minute: parseInt(p.minute, 10), dow };
 }
 
+// ---- Partner (TAP) cap_order/search: 1 linha por SKU ----
+// A MATRIZ é dona (user_id), cada pedido guarda o creator_username pra fechamento.
+// Response: data.orders[] { create_time(UTC), id, status, skus[...] }.
+// Valores monetários vêm como { amount:"1000", currency }. actual = liquidada.
+export function mapCapOrderToRows(order, matrizUid, uploadId) {
+  const t = brParts(order.create_time || 0);
+  const status = mapStatus(order.status);
+  const skus = Array.isArray(order.skus) ? order.skus : (order.skus ? [order.skus] : []);
+  return skus.map(sku => ({
+    user_id: matrizUid,          // dono = matriz (RLS: is_matriz vê tudo)
+    upload_id: uploadId,
+    tiktok_order_id: String(order.id || ''),
+    sku_id: String(sku.id || ''),
+    creator_username: sku.creator_username || null,
+    month: t.month,
+    order_date: t.order_date,
+    hour: t.hour,
+    minute: t.minute,
+    day_of_week: t.dow,
+    gmv: amt(sku.price),
+    settlement_status: status,
+    content_type: CONTENT_TYPE_MAP[String(sku.content_type || '').toUpperCase()] ?? 0,
+    content_id: String(sku.content_id || '').slice(-6),
+    store_name: sku.shop_name || 'Desconhecida',
+    product_name: (sku.product_name || '').slice(0, 60),
+    items_sold: num(sku.quantity),
+    items_refunded: num(sku.refunded_quantity) + num(sku.returned_quantity),
+    estimated_commission: amt(sku.estimated_commission),
+    received_commission: amt(sku.actual_commission)   // actual = comissão liquidada/recebida
+  }));
+}
+
 // Achata um pedido em N linhas (1 por SKU) — igual ao xlsx (pedido + SKU).
 export function mapOrderToRows(order, ownerId, accountId, agencyId) {
   const t = brParts(order.create_time || 0);
