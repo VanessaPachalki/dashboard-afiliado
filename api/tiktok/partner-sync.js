@@ -53,10 +53,19 @@ function brParts(unixSec) {
 
 // 202603 cap_order/search: data.sku_orders[] já vem 1 item por SKU (flat).
 // Mapeia UM sku_order -> UMA linha. account_id/agency_id preenchidos depois.
+// pega o 1º campo presente entre vários nomes possíveis (versões diferem)
+const _pick = (o, ...keys) => { for (const k of keys) if (o && o[k] != null && o[k] !== '') return o[k]; return null; };
+
 function mapSkuOrder(so, matrizUid, uploadId) {
   const t = brParts(so.create_time || 0);
   const qty = _num(so.quantity);
-  const refunded = String(so.fully_return || '').toUpperCase() === 'YES' ? qty : 0;
+  // status do PEDIDO (ciclo de vida) — diferente do settle_status (comissão)
+  const orderStatus = _pick(so, 'status', 'order_status');
+  const returnedQty = _num(_pick(so, 'returned_quantity'));
+  const refundedQty = _num(_pick(so, 'refunded_quantity'));
+  // itens reembolsados: usa o número real quando vier; senão o fully_return sim/não
+  const refunded = (refundedQty || returnedQty) ||
+    (String(so.fully_return || '').toUpperCase() === 'YES' ? qty : 0);
   return {
     user_id: matrizUid,
     upload_id: uploadId,
@@ -71,6 +80,10 @@ function mapSkuOrder(so, matrizUid, uploadId) {
     gmv: _amt(so.price),
     settlement_status: mapStatus(so.settle_status),
     settle_status_raw: so.settle_status || null,
+    order_status: orderStatus ? String(orderStatus).toUpperCase() : null,
+    returned_quantity: returnedQty,
+    refunded_quantity: refundedQty,
+    attribution_type: _pick(so, 'attribution_type') || null,
     content_type: CONTENT_TYPE_MAP[String(so.content_type || '').toUpperCase()] ?? 0,
     content_id: String(so.content_id || '').slice(-6),
     store_name: so.shop_name || 'Desconhecida',
@@ -327,6 +340,7 @@ export default async function handler(req, res) {
     // 5) paginação em LOTE: page_size 100, até max_pages por chamada.
     // Começa do page_token recebido (continuação) e devolve o próximo cursor.
     const maxPages = Math.max(1, Math.min(60, parseInt(req.query.max_pages, 10) || 20));
+    const debugKeys = req.query.debug === 'keys'; // matriz-only: confere nomes de campo da 202603
     let pageToken = req.query.page_token || '';
     let total = 0, pages = 0;
     let sample = null;
@@ -343,6 +357,7 @@ export default async function handler(req, res) {
       }
       const list = (data.data && (data.data.sku_orders || data.data.orders)) || [];
       if (!sample && list[0]) sample = list[0];
+      if (debugKeys) break; // não insere: só quer ver os campos crus da 1ª página
       const rows = list.map(o => mapSkuOrder(o, matrizUid, uploadId));
       for (const r of rows) {
         r.account_id = await resolveAccount(r.creator_username);
@@ -350,12 +365,23 @@ export default async function handler(req, res) {
         creatorsSet.add(r.creator_username || '(sem creator)');
       }
       if (rows.length) {
-        const up = await sb('orders?on_conflict=user_id,tiktok_order_id,sku_id', {
+        const upsert = payload => sb('orders?on_conflict=user_id,tiktok_order_id,sku_id', {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates' },
-          body: JSON.stringify(rows)
+          body: JSON.stringify(payload)
         });
-        if (!up.ok) return res.status(500).json({ error: 'upsert orders falhou', detail: await up.text() });
+        let up = await upsert(rows);
+        if (!up.ok) {
+          const txt = await up.text();
+          // colunas novas (order_status etc) ainda não migradas? tenta sem elas.
+          if (/column .* does not exist/i.test(txt)) {
+            const slim = rows.map(({ order_status, returned_quantity, refunded_quantity, attribution_type, ...r }) => r);
+            up = await upsert(slim);
+            if (!up.ok) return res.status(500).json({ error: 'upsert orders falhou', detail: await up.text() });
+          } else {
+            return res.status(500).json({ error: 'upsert orders falhou', detail: txt });
+          }
+        }
         total += rows.length;
       }
       pageToken = (data.data && data.data.next_page_token) || '';
@@ -363,6 +389,21 @@ export default async function handler(req, res) {
       if (!pageToken) break;
     }
     const done = !pageToken;
+
+    // debug seguro: confirma os nomes reais dos campos de status na 202603
+    if (debugKeys) {
+      const g = k => (sample ? sample[k] : undefined);
+      return res.status(200).json({
+        ok: true, debug: 'keys', endpoint,
+        all_keys: sample ? Object.keys(sample).sort() : [],
+        status_fields: {
+          settle_status: g('settle_status'), status: g('status'), order_status: g('order_status'),
+          fully_return: g('fully_return'), quantity: g('quantity'),
+          refunded_quantity: g('refunded_quantity'), returned_quantity: g('returned_quantity'),
+          attribution_type: g('attribution_type')
+        }
+      });
+    }
 
     await sb(`uploads?id=eq.${uploadId}`, {
       method: 'PATCH', body: JSON.stringify({ uploaded_at: new Date().toISOString() })

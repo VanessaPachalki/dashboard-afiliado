@@ -416,9 +416,21 @@ function renderLives() {
 // Retorna: liquidado | pendente | naopago | cancelado | devolucao | analise | aguardando
 function granularStatus(o) {
   const raw = String(o.settle_status_raw || '').toUpperCase();
+  const os = String(o.order_status || '').toUpperCase();   // ciclo do pedido (dado real)
+  const ret = Number(o.returned_quantity) || 0;
+  const ref = Number(o.refunded_quantity) || 0;
+  const wasRefunded = ret > 0 || ref > 0 || Number(o.items_refunded) > 0;
+  // desdobra INELIGIBLE usando o status real do pedido quando existe:
+  //   CANCELLED -> cancelado · DEDUCTED -> estornado (clawback) · devolução se houve reembolso
+  const splitInel = () => {
+    if (os === 'CANCELLED') return 'cancelado';
+    if (os === 'DEDUCTED') return 'deduzido';
+    if (os === 'COMPLETED') return wasRefunded ? 'devolucao' : 'cancelado';
+    return wasRefunded ? 'devolucao' : 'cancelado'; // sem order_status: cai na estimativa antiga
+  };
   if (raw) {
     if (raw.includes('SETTLED')) return 'liquidado';
-    if (raw.includes('INELIGIBLE')) return o.items_refunded > 0 ? 'devolucao' : 'cancelado';
+    if (raw.includes('INELIGIBLE')) return splitInel();
     if (raw.includes('UNPAID')) return 'naopago';
     if (raw.includes('FROZEN')) return 'analise';
     if (raw.includes('PENDING')) return 'pendente';
@@ -426,7 +438,7 @@ function granularStatus(o) {
   // fallback pelo settlement_status int (dados do upload manual)
   const s = o.settlement_status;
   if (s === 0) return 'liquidado';
-  if (s === 1) return o.items_refunded > 0 ? 'devolucao' : 'cancelado';
+  if (s === 1) return splitInel();
   if (s === 3) return 'aguardando';
   return 'pendente';
 }
@@ -437,31 +449,32 @@ const GRAN_CARDS = [
   ['naopago', 'Não pago p/ cliente', 'var(--orange)'],
   ['cancelado', 'Cancelados', '#9B59B6'],
   ['devolucao', 'Devoluções', 'var(--red)'],
+  ['deduzido', 'Estornados (clawback)', '#C0392B'],
   ['analise', 'Em análise (fraude)', 'var(--muted)'],
   ['aguardando', 'Aguardando pgto.', 'var(--muted)']
 ];
 const GRAN_LABEL = {
   liquidado: 'Liquidado', pendente: 'Pendente', naopago: 'Não pago',
-  cancelado: 'Cancelado', devolucao: 'Devolução', analise: 'Em análise', aguardando: 'Aguardando'
+  cancelado: 'Cancelado', devolucao: 'Devolução', deduzido: 'Estornado', analise: 'Em análise', aguardando: 'Aguardando'
 };
 
 // Distribuição de status (granular) com contagem e % sobre o total de pedidos.
 // Só retorna os status que aparecem. cancelado+devolucao = Inelegível (fiel à TikTok).
 function statusBreakdown(orders) {
-  const c = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, analise: 0, aguardando: 0 };
+  const c = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, deduzido: 0, analise: 0, aguardando: 0 };
   (orders || []).forEach(o => { c[granularStatus(o)]++; });
   const total = (orders || []).length || 1;
   const pctOf = n => n / total * 100;
   return {
     total: (orders || []).length,
-    inelegiveis: c.cancelado + c.devolucao,
+    inelegiveis: c.cancelado + c.devolucao + c.deduzido,
     items: GRAN_CARDS.filter(([k]) => c[k] > 0).map(([k, label, color]) => ({
       k, label, color, hex: STATUS_HEX[k] || '#8a8a92', n: c[k], pct: pctOf(c[k])
     }))
   };
 }
 // cores hex equivalentes (pro canvas/PDF, onde var(--..) não vale)
-const STATUS_HEX = { liquidado: '#2ECC71', pendente: '#D4A76A', naopago: '#E8873A', cancelado: '#9B59B6', devolucao: '#E74C3C', analise: '#8a8a92', aguardando: '#8a8a92' };
+const STATUS_HEX = { liquidado: '#2ECC71', pendente: '#D4A76A', naopago: '#E8873A', cancelado: '#9B59B6', devolucao: '#E74C3C', deduzido: '#C0392B', analise: '#8a8a92', aguardando: '#8a8a92' };
 const pct1 = v => v.toFixed(1).replace('.', ',') + '%';
 
 // Lista de pedidos do turno atual (pra tabela de detalhes + busca + ordenação)
@@ -469,8 +482,8 @@ let lastTurnoOrders = [];
 let ordDetailSort = { key: 'dt', dir: 'asc' };
 
 // ordem lógica dos status: Liquidado -> Cancelado -> Devolução -> resto
-const STATUS_ORDER = { liquidado: 0, cancelado: 1, devolucao: 2, naopago: 3, pendente: 4, aguardando: 5, analise: 6 };
-const STATUS_COLOR = { liquidado: 'var(--green)', cancelado: '#9B59B6', devolucao: 'var(--red)', pendente: 'var(--cream)', naopago: 'var(--orange)', aguardando: 'var(--muted)', analise: 'var(--muted)' };
+const STATUS_ORDER = { liquidado: 0, cancelado: 1, devolucao: 2, deduzido: 3, naopago: 4, pendente: 5, aguardando: 6, analise: 7 };
+const STATUS_COLOR = { liquidado: 'var(--green)', cancelado: '#9B59B6', devolucao: 'var(--red)', deduzido: '#C0392B', pendente: 'var(--cream)', naopago: 'var(--orange)', aguardando: 'var(--muted)', analise: 'var(--muted)' };
 const ORD_DETAIL_VAL = {
   dt: o => orderDT(o),
   resp: o => (o._resp || '').toLowerCase(),
@@ -642,7 +655,7 @@ function calcularFechamento() {
   };
 
   // Contagem por status granular (mostra só os que têm pedido + Liquidados sempre)
-  const gran = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, analise: 0, aguardando: 0 };
+  const gran = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, deduzido: 0, analise: 0, aguardando: 0 };
   orders.forEach(o => { gran[granularStatus(o)]++; });
   const granHtml = GRAN_CARDS
     .filter(([k]) => gran[k] > 0 || k === 'liquidado')
