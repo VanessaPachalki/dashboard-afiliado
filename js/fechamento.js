@@ -1248,9 +1248,12 @@ async function abrirLiveSalva(id) {
       escalaAddRow(t.ini, t.fim);
       const last = tb.querySelector('tr:last-child');
       if (last) {
-        last.querySelector('.es-nome').value = t.nome || '';
-        last.querySelector('.es-qtd').value = t.qtd || 1;
-        escalaNomeCheck(last.querySelector('.es-nome'));
+        // reconstrói os responsáveis (novo formato com array; ou o antigo com 1 nome)
+        last._resp = Array.isArray(t.responsaveis) && t.responsaveis.length
+          ? t.responsaveis.map(p => ({ nome: p.nome, pct: p.pct != null ? Number(p.pct) : null, aux_id: p.aux_id || null, aux_email: p.aux_email || null }))
+          : (t.nome ? [{ nome: t.nome, pct: null, aux_id: null, aux_email: null }] : []);
+        if (last._resp.some(r => r.pct == null)) respRedistribute(last);
+        renderResp(last);
       }
     });
     escalaCheckLive();
@@ -1394,7 +1397,7 @@ function escalaAddRow(iniDT, fimDT) {
   const lastTr = tb.querySelector('tr:last-child');
   // "+ Adicionar turno": exige o turno anterior completo e encadeia +1 min
   if (!iniDT && lastTr) {
-    const n = lastTr.querySelector('.es-nome').value.trim();
+    const n = (lastTr._resp || []).length;
     const i = lastTr.dataset.ini;                       // início = fonte estável
     const f = lastTr.querySelector('.es-fim').value;
     if (!n || !i || !f || f <= i) { setEscalaMsg('err', 'Preencha o turno atual (responsável e fim) antes de adicionar outro.'); return; }
@@ -1405,14 +1408,85 @@ function escalaAddRow(iniDT, fimDT) {
   const isFirst = !tb.querySelector('tr');               // 1ª linha não pode ser excluída
   const tr = document.createElement('tr');
   tr.dataset.ini = iniDT || '';                          // início NÃO some (não é input editável)
+  tr._resp = [];                                         // responsáveis do turno (chips)
   tr.innerHTML =
-    `<td><input class="es-nome" list="auxDatalist" placeholder="Nome do responsável" oninput="escalaNomeCheck(this);escalaCheckLive()"><span class="es-aux-badge" style="display:none;font-size:10px;color:var(--green);margin-left:6px;white-space:nowrap;">✓ auxiliar</span></td>
+    `<td><div class="resp-cell" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+       <input class="resp-add" list="auxDatalist" placeholder="Responsável (Enter)" onkeydown="if(event.key==='Enter'){event.preventDefault();respAdd(this);}" onchange="respAdd(this)" onblur="respAdd(this)" style="border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--bg);color:var(--text);font-size:13px;flex:1;min-width:120px;">
+     </div></td>
      <td><span class="es-ini-lbl" style="font-size:13px;color:var(--muted);white-space:nowrap;">${iniDT ? fmtDT(iniDT) : '—'}</span></td>
      <td><input type="datetime-local" class="es-fim" ${mm} value="${fimDT || iniDT || ''}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
-     <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
+     <td class="col-qtd"><span class="es-qtd-lbl" style="font-size:13px;color:var(--muted);">1</span></td>
      ${isFirst ? '<td></td>' : '<td><button class="del" title="Remover" onclick="escalaDelRow(this)">×</button></td>'}`;
   tb.appendChild(tr);
   escalaCheckLive();
+}
+
+// ---- responsáveis do turno (vários; cadastrados ou avulsos; com % por pessoa) ----
+function respAdd(input) {
+  const val = (input.value || '').trim();
+  if (!val) return;
+  const tr = input.closest('tr');
+  if (!tr._resp) tr._resp = [];
+  const aux = auxByName[val.toLowerCase()];
+  tr._resp.push({ nome: val, aux_id: aux ? aux.id : null, aux_email: aux ? aux.email : null, pct: 0 });
+  input.value = '';
+  respRedistribute(tr);
+  renderResp(tr);
+  escalaCheckLive();
+}
+function respRemove(tr, i) {
+  if (!tr._resp) return;
+  tr._resp.splice(i, 1);
+  respRedistribute(tr);
+  renderResp(tr);
+  escalaCheckLive();
+}
+// distribui igualmente (100/N); último absorve a sobra pra fechar 100.
+function respRedistribute(tr) {
+  const n = (tr._resp || []).length;
+  if (!n) return;
+  const base = Math.floor(100 / n);
+  tr._resp.forEach(r => { r.pct = base; });
+  tr._resp[n - 1].pct = 100 - base * (n - 1);
+}
+function respPct(tr, i, val) {
+  const p = Math.max(0, Math.min(100, parseFloat(String(val).replace(',', '.')) || 0));
+  if (tr._resp && tr._resp[i]) tr._resp[i].pct = p;
+  renderRespSum(tr);
+  escalaCheckLive();
+}
+function renderResp(tr) {
+  const cell = tr.querySelector('.resp-cell');
+  if (!cell) return;
+  const input = cell.querySelector('.resp-add');
+  cell.querySelectorAll('.resp-chip').forEach(c => c.remove());
+  const resp = tr._resp || [];
+  const multi = resp.length > 1;
+  resp.forEach((r, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'resp-chip';
+    const linked = !!r.aux_id;
+    chip.style.cssText = `display:inline-flex;align-items:center;gap:4px;background:${linked ? 'var(--orange-soft)' : 'var(--card)'};border:1px solid ${linked ? 'var(--orange)' : 'var(--border)'};border-radius:14px;padding:3px 8px;font-size:12px;`;
+    chip.innerHTML =
+      `${linked ? '<span style="color:var(--green);">✓</span>' : ''}<span>${esc(r.nome)}</span>` +
+      (multi ? ` <input class="resp-pct" type="text" inputmode="decimal" value="${r.pct}" onchange="respPct(this.closest('tr'),${i},this.value)" style="width:36px;text-align:center;border:1px solid var(--border);border-radius:6px;padding:1px 3px;font-size:11px;background:var(--bg);color:var(--text);"><span style="color:var(--muted);">%</span>` : '') +
+      ` <span onclick="respRemove(this.closest('tr'),${i})" style="cursor:pointer;color:var(--muted);font-weight:700;">×</span>`;
+    cell.insertBefore(chip, input);
+  });
+  const q = tr.querySelector('.es-qtd-lbl'); if (q) q.textContent = Math.max(1, resp.length);
+  renderRespSum(tr);
+}
+function renderRespSum(tr) {
+  const resp = tr._resp || [];
+  const cell = tr.querySelector('.resp-cell');
+  if (!cell) return;
+  let sumEl = cell.querySelector('.resp-sum');
+  if (resp.length > 1) {
+    const sum = resp.reduce((s, r) => s + (Number(r.pct) || 0), 0);
+    if (!sumEl) { sumEl = document.createElement('span'); sumEl.className = 'resp-sum'; sumEl.style.cssText = 'font-size:10px;width:100%;'; cell.appendChild(sumEl); }
+    sumEl.textContent = sum === 100 ? '' : `soma ${sum}% (tem que dar 100%)`;
+    sumEl.style.color = sum === 100 ? 'var(--muted)' : 'var(--red)';
+  } else if (sumEl) { sumEl.remove(); }
 }
 
 // re-encadeia só os INÍCIOS (início = fim anterior +1min). NÃO mexe nos fins
@@ -1436,12 +1510,17 @@ function escalaDelRow(btn) { const tr = btn.closest('tr'); if (!tr || !tr.previo
 function escalaReadRows() {
   const rows = [];
   document.querySelectorAll('#escalaRows tr').forEach(tr => {
-    const nome = tr.querySelector('.es-nome').value.trim();
+    const resp = tr._resp || [];
+    const nome = resp.map(r => r.nome).join(', ');
     const ini = tr.dataset.ini || '';
     const fim = tr.querySelector('.es-fim').value;
-    let qtd = parseInt(tr.querySelector('.es-qtd').value, 10); if (!qtd || qtd < 1) qtd = 1;
-    const aux = auxByName[nome.toLowerCase()];
-    rows.push({ nome, ini, fim, qtd, auxiliar_id: aux ? aux.id : null, auxiliar_email: aux ? aux.email : null });
+    const qtd = Math.max(1, resp.length);
+    const auxEmails = resp.map(r => r.aux_email).filter(Boolean);
+    rows.push({
+      nome, ini, fim, qtd,
+      responsaveis: resp.map(r => ({ nome: r.nome, pct: Number(r.pct) || 0, aux_id: r.aux_id || null, aux_email: r.aux_email || null })),
+      auxiliar_emails: auxEmails, auxiliar_email: auxEmails[0] || null
+    });
   });
   return rows;
 }
@@ -1496,7 +1575,12 @@ function escalaCalcAll() {
     const inel = sel.filter(o => o.settlement_status === 1);
     const recebida = liq.reduce((s, o) => s + (parseFloat(o.received_commission) || 0), 0);
     const pagar = recebida * pct / 100;
-    return { ...r, pct, recebida, pagar, porCreator: pagar / r.qtd, liquidados: liq.length, inelegiveis: inel.length, total: sel.length };
+    // valor por responsável = pagar × (% dele); se não houver % válido, divide igual
+    const somaPct = (r.responsaveis || []).reduce((s, p) => s + (Number(p.pct) || 0), 0);
+    const responsaveis = (r.responsaveis || []).map(p => ({
+      ...p, valor: somaPct === 100 ? pagar * (Number(p.pct) || 0) / 100 : pagar / r.qtd
+    }));
+    return { ...r, pct, recebida, pagar, porCreator: pagar / r.qtd, responsaveis, liquidados: liq.length, inelegiveis: inel.length, total: sel.length };
   });
   escalaState.pct = pct;
   renderEscalaResults();
@@ -1540,7 +1624,7 @@ function renderEscalaResults() {
       <td class="r">${r.inelegiveis}</td>
       <td class="r">${fmtBRL(r.recebida)}</td>
       <td class="r"><strong style="color:var(--orange);">${fmtBRL(r.pagar)}</strong></td>
-      <td class="r">${r.qtd > 1 ? fmtBRL(r.porCreator) : '—'}</td>
+      <td class="r" style="font-size:11px;line-height:1.6;white-space:nowrap;">${r.responsaveis && r.responsaveis.length > 1 ? r.responsaveis.map(p => `${esc(p.nome)}: <strong>${fmtBRL(p.valor)}</strong>${p.pct != null ? ` <span style="color:var(--muted);">(${p.pct}%)</span>` : ''}`).join('<br>') : '—'}</td>
       <td class="r" style="white-space:nowrap;"><button class="btn-sm" onclick="reportRow(${i},'img')">Img</button> <button class="btn-sm" onclick="reportRow(${i},'pdf')">PDF</button></td>
     </tr>`).join('');
   const totRecebida = rows.reduce((s, r) => s + r.recebida, 0);
@@ -1808,7 +1892,7 @@ async function excluirEConfirmar() {
 async function doSaveLive(name) {
   const s = escalaState;
   const uid = await myUid();
-  const auxEmails = [...new Set((s.results || []).map(r => r.auxiliar_email).filter(Boolean))];
+  const auxEmails = [...new Set((s.results || []).flatMap(r => r.auxiliar_emails || []))];
   const { error } = await sb.from('lives').insert({
     agency_id: agencyId(), owner_id: uid, account_id: s.accountId,
     name, start_dt: s.liveIni, end_dt: s.liveFim, pct: s.pct, turnos: s.results,
