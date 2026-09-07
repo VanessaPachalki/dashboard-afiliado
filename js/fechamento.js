@@ -1366,19 +1366,6 @@ function addMin(v, m) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-// --- helpers de turno: só HORA visível, data automática ---
-function timeOf(dt) { return dt ? dt.slice(11, 16) : ''; }
-function dateOf(dt) { return dt ? dt.slice(0, 10) : ''; }
-function dtParts(d) { const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
-// compõe o FIM (datetime) a partir do início do turno + uma hora "HH:MM".
-// Se a hora for <= a do início, assume virada de dia (madrugada).
-function composeFim(iniDT, hhmm) {
-  if (!iniDT || !hhmm) return '';
-  let fim = dateOf(iniDT) + 'T' + hhmm;
-  if (fim <= iniDT) { const d = new Date(dateOf(iniDT) + 'T' + hhmm); d.setDate(d.getDate() + 1); fim = dtParts(d); }
-  return fim;
-}
-
 function escalaAddRow(iniDT, fimDT) {
   const tb = document.getElementById('escalaRows');
   if (!tb) return;
@@ -1386,46 +1373,47 @@ function escalaAddRow(iniDT, fimDT) {
   // "+ Adicionar turno": exige o turno anterior completo e encadeia +1 min
   if (!iniDT && lastTr) {
     const n = lastTr.querySelector('.es-nome').value.trim();
-    const iniPrev = lastTr.dataset.ini;
-    const fimPrev = composeFim(iniPrev, lastTr.querySelector('.es-fim').value);
-    if (!n || !iniPrev || !fimPrev) { setEscalaMsg('err', 'Preencha o turno atual (responsável e hora de fim) antes de adicionar outro.'); return; }
-    iniDT = addMin(fimPrev, 1);
+    const i = lastTr.querySelector('.es-ini').value;
+    const f = lastTr.querySelector('.es-fim').value;
+    if (!n || !i || !f || f <= i) { setEscalaMsg('err', 'Preencha o turno atual (responsável e fim) antes de adicionar outro.'); return; }
+    iniDT = addMin(f, 1);
   }
+  // fim já vem com a DATA certa (= a do início) pra você só ajustar a hora
+  const mm = escalaState.liveIni ? `min="${escalaState.liveIni}" max="${escalaState.liveFim}"` : '';
   const tr = document.createElement('tr');
-  tr.dataset.ini = iniDT || '';
   tr.innerHTML =
     `<td><input class="es-nome" placeholder="Nome do responsável" oninput="escalaCheckLive()"></td>
-     <td><input type="time" class="es-ini" value="${timeOf(iniDT)}" readonly tabindex="-1" title="Início automático (encadeado)" style="opacity:.55;cursor:not-allowed;"></td>
-     <td><input type="time" class="es-fim" value="${timeOf(fimDT)}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
+     <td><input type="datetime-local" class="es-ini" ${mm} value="${iniDT || ''}" readonly tabindex="-1" title="Início automático (encadeado)" style="opacity:.55;cursor:not-allowed;"></td>
+     <td><input type="datetime-local" class="es-fim" ${mm} value="${fimDT || iniDT || ''}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
      <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
      <td><button class="del" title="Remover" onclick="escalaDelRow(this)">×</button></td>`;
   tb.appendChild(tr);
   escalaCheckLive();
 }
 
-// re-encadeia TODAS as linhas a partir do início da live (início = fim anterior +1min).
-// Início fica travado -> impossível criar gap/overlap manual. Clampa no fim da live.
+// re-encadeia os INÍCIOS a partir do início da live (início = fim anterior +1min).
+// Início travado -> impossível criar gap/overlap manual. Clampa no fim da live.
 function escalaRechain() {
-  let ini = escalaState.liveIni;
-  document.querySelectorAll('#escalaRows tr').forEach(tr => {
-    tr.dataset.ini = ini;
-    const iniInput = tr.querySelector('.es-ini'); if (iniInput) iniInput.value = timeOf(ini);
+  let prevFim = null;
+  document.querySelectorAll('#escalaRows tr').forEach((tr, i) => {
+    const iniInput = tr.querySelector('.es-ini');
+    const ini = i === 0 ? escalaState.liveIni : (prevFim ? addMin(prevFim, 1) : iniInput.value);
+    if (iniInput) iniInput.value = ini;
     const fimInput = tr.querySelector('.es-fim');
-    let fim = composeFim(ini, fimInput.value);
-    if (fim && escalaState.liveFim && fim > escalaState.liveFim) { fim = escalaState.liveFim; fimInput.value = timeOf(fim); }
-    ini = fim ? addMin(fim, 1) : ini;
+    let fim = fimInput.value;
+    if (fim && escalaState.liveFim && fim > escalaState.liveFim) { fim = escalaState.liveFim; fimInput.value = fim; }
+    prevFim = (fim && fim > ini) ? fim : null;
   });
 }
 
-// guarda o ilógico: fim antes do início, ou turno passando do fim da live
+// guarda o ilógico: fim <= início, ou turno passando do fim da live
 function escalaFimChange(input) {
   const tr = input.closest('tr');
-  const ini = tr.dataset.ini;
-  const val = input.value;
-  if (val && ini) {
-    const sameDay = dateOf(escalaState.liveIni) === dateOf(escalaState.liveFim);
-    if (sameDay && (dateOf(ini) + 'T' + val) <= ini) { toast('err', 'Hora de fim antes do início do turno. Confira.'); input.value = ''; }
-    else if (escalaState.liveFim && composeFim(ini, val) > escalaState.liveFim) { toast('warn', 'O turno passaria do fim da live. Ajustei pro fim da live.'); input.value = timeOf(escalaState.liveFim); }
+  const ini = tr.querySelector('.es-ini').value;
+  const fim = input.value;
+  if (fim && ini) {
+    if (fim <= ini) { toast('err', 'O fim do turno deve ser depois do início.'); input.value = ''; }
+    else if (escalaState.liveFim && fim > escalaState.liveFim) { toast('warn', 'O turno passaria do fim da live. Ajustei pro fim da live.'); input.value = escalaState.liveFim; }
   }
   escalaRechain();
 }
@@ -1436,8 +1424,8 @@ function escalaReadRows() {
   const rows = [];
   document.querySelectorAll('#escalaRows tr').forEach(tr => {
     const nome = tr.querySelector('.es-nome').value.trim();
-    const ini = tr.dataset.ini || '';
-    const fim = composeFim(ini, tr.querySelector('.es-fim').value);
+    const ini = tr.querySelector('.es-ini').value;
+    const fim = tr.querySelector('.es-fim').value;
     let qtd = parseInt(tr.querySelector('.es-qtd').value, 10); if (!qtd || qtd < 1) qtd = 1;
     rows.push({ nome, ini, fim, qtd });
   });
@@ -1474,11 +1462,13 @@ function escalaCheckLive() {
 }
 
 function escalaCalcAll() {
-  // último turno com fim vazio -> autocompleta com o fim da live
+  // último turno com fim ainda no padrão (<= início) -> autocompleta com o fim da live
   const trs = document.querySelectorAll('#escalaRows tr');
   if (trs.length && escalaState.liveFim) {
-    const lastFim = trs[trs.length - 1].querySelector('.es-fim');
-    if (lastFim && !lastFim.value) { lastFim.value = timeOf(escalaState.liveFim); escalaRechain(); }
+    const lastTr = trs[trs.length - 1];
+    const lastFim = lastTr.querySelector('.es-fim');
+    const lastIni = lastTr.querySelector('.es-ini').value;
+    if (lastFim && (!lastFim.value || lastFim.value <= lastIni)) { lastFim.value = escalaState.liveFim; escalaRechain(); }
   }
   const rows = escalaReadRows();
   const valid = rows.filter(r => r.nome && r.ini && r.fim && r.ini < r.fim);
