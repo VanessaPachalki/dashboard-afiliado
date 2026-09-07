@@ -1393,37 +1393,21 @@ function escalaAddRow(iniDT, fimDT) {
   escalaCheckLive();
 }
 
-// re-encadeia os INÍCIOS a partir do início da live (início = fim anterior +1min).
-// Início é rótulo fixo (dataset.ini) -> impossível apagar/perder a referência.
+// re-encadeia só os INÍCIOS (início = fim anterior +1min). NÃO mexe nos fins
+// digitados — a validação (fora da janela / fim<=início) é avisada, não forçada.
 function escalaRechain() {
   let prevFim = null;
   document.querySelectorAll('#escalaRows tr').forEach((tr, i) => {
     const ini = i === 0 ? escalaState.liveIni : (prevFim ? addMin(prevFim, 1) : (tr.dataset.ini || escalaState.liveIni));
     tr.dataset.ini = ini;
     const lbl = tr.querySelector('.es-ini-lbl'); if (lbl) lbl.textContent = ini ? fmtDT(ini) : '—';
-    const fimInput = tr.querySelector('.es-fim');
-    let fim = fimInput.value;
-    if (fim && escalaState.liveFim && fim > escalaState.liveFim) { fim = escalaState.liveFim; fimInput.value = fim; }
+    const fim = tr.querySelector('.es-fim').value;
     prevFim = (fim && fim > ini) ? fim : null;
   });
 }
 
-// resolve o fim sem nunca apagar: se ficou <= o início (madrugada numa live que
-// vira o dia), rola a DATA +1 dia sozinho; clampa no fim da live.
-function escalaFimChange(input) {
-  const tr = input.closest('tr');
-  const ini = tr.dataset.ini;
-  let fim = input.value;
-  if (fim && ini && fim <= ini) {
-    const rolled = addMin(fim, 1440); // +1 dia
-    if (rolled > ini) { fim = rolled; input.value = fim; }
-  }
-  if (fim && escalaState.liveFim && fim > escalaState.liveFim) {
-    toast('warn', 'O turno passa do fim da live. Ajustei pro fim da live.');
-    fim = escalaState.liveFim; input.value = fim;
-  }
-  escalaRechain();
-}
+// só re-encadeia os inícios seguintes; nunca altera o que você digitou no fim.
+function escalaFimChange(input) { escalaRechain(); }
 
 function escalaDelRow(btn) { const tr = btn.closest('tr'); if (!tr || !tr.previousElementSibling) return; tr.remove(); escalaRechain(); escalaCheckLive(); }
 
@@ -1448,6 +1432,8 @@ function escalaCheckLive() {
   const rows = allRows.filter(r => r.ini && r.fim && r.ini < r.fim);
   const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const warns = [];
+  if (allRows.some(r => r.nome && r.fim && r.fim <= r.ini))
+    warns.push('Um turno tem o fim antes ou igual ao início. Ajuste a data/hora de fim (se virou o dia, mude a data).');
   for (let i = 0; i < rows.length; i++)
     for (let j = i + 1; j < rows.length; j++)
       if (rows[i].ini <= rows[j].fim && rows[j].ini <= rows[i].fim)
