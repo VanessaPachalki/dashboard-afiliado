@@ -33,6 +33,20 @@ function hexToRgb(hex) {
 function brandName() { return (window.AGENCY && window.AGENCY.name) || 'SPACEHUB'; }
 function brandHex() { return window.BRAND_COLOR || '#E8551B'; }
 
+// logo em PRETO (data URL) pro PDF/fundo claro; null se der taint/erro
+function blackLogoDataURL(img) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+    const cx = c.getContext('2d');
+    cx.filter = 'brightness(0)';
+    cx.drawImage(img, 0, 0);
+    return c.toDataURL('image/png');
+  } catch (e) { return null; }
+}
+// remove a seta unicode (fonte do PDF não tem) pros textos do PDF
+function pdfSafe(s) { return String(s || '').replace(/→/g, ' - '); }
+
 // data-hora absoluta e comparável de um pedido: "YYYY-MM-DDTHH:MM"
 // (formato ISO ordena lexicograficamente, então dá pra comparar como string)
 function orderDT(o) {
@@ -427,8 +441,8 @@ const GRAN_LABEL = {
 let lastTurnoOrders = [];
 let ordDetailSort = { key: 'dt', dir: 'asc' };
 
-// ordem lógica dos status (pra ordenar por status de forma útil)
-const STATUS_ORDER = { liquidado: 0, pendente: 1, aguardando: 2, naopago: 3, cancelado: 4, devolucao: 5, analise: 6 };
+// ordem lógica dos status: Liquidado -> Cancelado -> Devolução -> resto
+const STATUS_ORDER = { liquidado: 0, cancelado: 1, devolucao: 2, naopago: 3, pendente: 4, aguardando: 5, analise: 6 };
 const ORD_DETAIL_VAL = {
   dt: o => orderDT(o),
   resp: o => (o._resp || '').toLowerCase(),
@@ -458,7 +472,12 @@ function renderOrdersDetail() {
   // ordenação
   const dir = ordDetailSort.dir === 'asc' ? 1 : -1;
   const val = ORD_DETAIL_VAL[ordDetailSort.key] || ORD_DETAIL_VAL.dt;
-  list = list.slice().sort((a, b) => { const x = val(a), y = val(b); return x < y ? -dir : x > y ? dir : 0; });
+  list = list.slice().sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x < y) return -dir; if (x > y) return dir;
+    const da = orderDT(a), db = orderDT(b); // desempate sempre por data
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
 
   const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const body = list.map(o => {
@@ -766,9 +785,9 @@ function pdfBlob(d) {
 
     if (img) {
       const h = 12, w = img.width * (h / img.height);
-      doc.addImage(logoUrl, 'PNG', 20, 16, w, h);
+      doc.addImage(blackLogoDataURL(img) || logoUrl, 'PNG', 20, 16, w, h);
     } else {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...orange);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(26);
       doc.text(brandName(), 20, 25);
     }
     if (d.liveName) { doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(26); doc.text(d.liveName, 20, 37); }
@@ -786,8 +805,8 @@ function pdfBlob(d) {
       y += 9;
     };
     linha(qty > 1 ? 'Responsáveis' : 'Responsável', creator);
-    linha('Período', d.periodo);
-    linha('Turno', d.turnoStr);
+    linha('Período', pdfSafe(d.periodo));
+    linha('Turno', pdfSafe(d.turnoStr));
 
     y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
     // só o valor que a pessoa recebe (sem "total")
@@ -1422,7 +1441,7 @@ function renderEscalaResults() {
     const cov = rows.filter(r => dt >= r.ini && dt <= r.fim);
     return Object.assign({}, o, { _resp: cov.length === 1 ? cov[0].nome : (cov.length > 1 ? '⚠ vários' : '') });
   });
-  ordDetailSort = { key: 'dt', dir: 'asc' };
+  ordDetailSort = { key: 'status', dir: 'asc' }; // padrão: Liquidado -> Cancelado -> ... + data
   const ds = document.getElementById('ordersDetailSearch'); if (ds) ds.value = '';
   const respSel = document.getElementById('ordersDetailResp');
   if (respSel) {
@@ -1507,10 +1526,10 @@ function pdfGeralBlob(g) {
   const logoUrl = tenantLogo();
   const render = (img) => {
     const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-    if (img) { const h = 12, w = img.width * (h / img.height); doc.addImage(logoUrl, 'PNG', 20, 16, w, h); }
-    else { doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...orange); doc.text(brandName(), 20, 25); }
+    if (img) { const h = 12, w = img.width * (h / img.height); doc.addImage(blackLogoDataURL(img) || logoUrl, 'PNG', 20, 16, w, h); }
+    else { doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(26); doc.text(brandName(), 20, 25); }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(26); doc.text(g.liveName, 20, 40);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120); doc.text(g.periodo, 20, 47);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120); doc.text(pdfSafe(g.periodo), 20, 47);
     doc.setDrawColor(220); doc.line(20, 52, 190, 52);
     doc.setFontSize(10); doc.setTextColor(120); doc.text(`TOTAL A PAGAR · repasse ${g.pct}%`, 20, 62);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fmtBRL(g.totalPagar), 20, 74);
@@ -1523,7 +1542,7 @@ function pdfGeralBlob(g) {
     g.turnos.forEach(t => {
       if (y > 280) { doc.addPage(); y = 20; }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(30); doc.text(t.nome + (t.qtd > 1 ? ` (${t.qtd}x)` : ''), 20, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110); doc.text(t.turnoStr, 85, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110); doc.text(pdfSafe(t.turnoStr), 85, y);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...orange); doc.text(fmtBRL(t.pagar), 190, y, { align: 'right' });
       y += 8;
     });
