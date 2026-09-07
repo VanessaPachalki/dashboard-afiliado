@@ -26,10 +26,6 @@
 <div class="wpanel" id="wpanel1">
   <div class="admin-section">
     <h2>Operação de live</h2>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
-      Escolha o <strong>Creator Host</strong> (o perfil onde a live aconteceu) e o período — a live pode durar
-      vários dias. Depois lance os responsáveis por turno, cada um com data e hora de início e fim.
-    </p>
     <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;">
       <div class="field" style="position:relative;">
         <label>Creator Host</label>
@@ -94,6 +90,20 @@
   </div>
 </div>
 
+</div>
+
+<!-- Modal: dias sem dados -->
+<div id="dataModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-icon">📅</div>
+    <h3>Faltam dados de alguns dias</h3>
+    <p>O período tem dias sem pedidos no sistema. Importe esses dias antes de fechar a escala — ou ajuste o período pra só os dias que você já tem.</p>
+    <div class="modal-days" id="dataModalDays"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeDataModal()">Ajustar período</button>
+      <a class="btn-primary" id="dataModalSync" href="sincronizar.html">Ir para Sincronização →</a>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>

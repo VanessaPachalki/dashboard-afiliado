@@ -1106,6 +1106,10 @@ function setEscalaMsg(cls, txt) {
   if (m) { m.className = 'msg' + (cls ? ' msg-' + cls : ''); m.textContent = txt; }
 }
 
+function sbBanner(type, icon, text) {
+  return `<div class="status-banner sb-${type}"><span class="sb-icon">${icon}</span><span>${text}</span></div>`;
+}
+
 function wizardGo(n) {
   for (let i = 1; i <= 2; i++) {
     const p = document.getElementById('wpanel' + i);
@@ -1207,11 +1211,7 @@ async function escalaCarregarPeriodo() {
   let mn = null, mx = null;
   escalaState.orders.forEach(o => { const dt = orderDT(o); if (mn === null || dt < mn) mn = dt; if (mx === null || dt > mx) mx = dt; });
   escalaState.min = mn; escalaState.max = mx;
-  document.getElementById('escalaRange').textContent =
-    `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
-  if (box) box.style.display = '';
-
-  // avisa quais dias do período NÃO têm dados no sistema
+  // dias do período SEM dados -> bloqueia com modal push-up
   const present = new Set(escalaState.orders.map(o => o.order_date));
   const missing = [];
   const d = new Date(from + 'T12:00:00'), end = new Date(to + 'T12:00:00');
@@ -1221,19 +1221,52 @@ async function escalaCarregarPeriodo() {
     d.setDate(d.getDate() + 1);
   }
   if (missing.length) {
-    const fmtDay = s => { const [, m, dd] = s.split('-'); return `${dd}/${m}`; };
-    setEscalaMsg('err', `${escalaState.orders.length} pedidos carregados. ⚠ Sem dados dos dias: ${missing.map(fmtDay).join(', ')} — sincronize se precisar deles (Menu → Sincronização).`);
-  } else {
-    setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados — todos os dias do período têm dados.`);
+    if (box) box.style.display = 'none';
+    setEscalaMsg('err', `Faltam dados de ${missing.length} dia(s) do período.`);
+    showDataModal(missing);
+    return;
   }
 
+  document.getElementById('escalaRange').textContent =
+    `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
+  if (box) box.style.display = '';
+  setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados — período completo.`);
   document.getElementById('escalaRows').innerHTML = '';
   escalaAddRow(mn, mx); // 1ª linha já cobrindo o período todo
+}
+
+function showDataModal(missing) {
+  const fmtDay = s => { const [, m, dd] = s.split('-'); return `${dd}/${m}`; };
+  const el = document.getElementById('dataModalDays');
+  if (el) el.innerHTML = missing.map(s => `<span class="modal-day">${fmtDay(s)}</span>`).join('');
+  const link = document.getElementById('dataModalSync');
+  if (link) link.href = `sincronizar.html?from=${missing[0]}&to=${missing[missing.length - 1]}`;
+  const m = document.getElementById('dataModal');
+  if (m) m.style.display = 'flex';
+}
+function closeDataModal() { const m = document.getElementById('dataModal'); if (m) m.style.display = 'none'; }
+
+// soma minutos a um "YYYY-MM-DDTHH:MM" (datetime-local)
+function addMin(v, m) {
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return v;
+  d.setMinutes(d.getMinutes() + m);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function escalaAddRow(ini, fim) {
   const tb = document.getElementById('escalaRows');
   if (!tb) return;
+  const lastTr = tb.querySelector('tr:last-child');
+  // "+ Adicionar turno" (sem início): exige o último completo e encadeia +1 min
+  if (!ini && lastTr) {
+    const n = lastTr.querySelector('.es-nome').value.trim();
+    const i = lastTr.querySelector('.es-ini').value;
+    const f = lastTr.querySelector('.es-fim').value;
+    if (!n || !i || !f) { setEscalaMsg('err', 'Preencha o turno atual (responsável, início e fim) antes de adicionar outro.'); return; }
+    ini = addMin(f, 1);
+  }
   const mm = escalaState.min ? `min="${escalaState.min}" max="${escalaState.max}"` : '';
   const tr = document.createElement('tr');
   tr.innerHTML =
@@ -1267,19 +1300,19 @@ function escalaCheckLive() {
   const warns = [];
   for (let i = 0; i < rows.length; i++)
     for (let j = i + 1; j < rows.length; j++)
-      if (rows[i].ini < rows[j].fim && rows[j].ini < rows[i].fim)
+      if (rows[i].ini <= rows[j].fim && rows[j].ini <= rows[i].fim)
         warns.push(`⚠ Sobreposição: "${rows[i].nome || 'turno ' + (i + 1)}" e "${rows[j].nome || 'turno ' + (j + 1)}" pegam o mesmo horário.`);
   let gap = 0, gapReceb = 0, over = 0;
   escalaState.orders.forEach(o => {
     const dt = orderDT(o);
-    const cov = rows.filter(r => dt >= r.ini && dt < r.fim).length;
+    const cov = rows.filter(r => dt >= r.ini && dt <= r.fim).length;
     if (cov === 0) { gap++; if (o.settlement_status === 0) gapReceb += parseFloat(o.received_commission) || 0; }
     else if (cov > 1) over++;
   });
-  let html = warns.map(w => `<div class="msg msg-err" style="margin-bottom:6px;">${w}</div>`).join('');
-  if (gap > 0) html += `<div class="msg" style="margin-bottom:6px;background:var(--orange-soft);color:var(--orange);">⬤ ${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno (${fmtBRL(gapReceb)} de comissão sem responsável). Cubra o período ou siga assim.</div>`;
-  if (over > 0) html += `<div class="msg msg-err" style="margin-bottom:6px;">⚠ ${over.toLocaleString('pt-BR')} pedido(s) caem em mais de um turno (contados 2x).</div>`;
-  if (!html && rows.length) html = `<div class="msg msg-ok">✓ Todos os pedidos cobertos, sem sobreposição.</div>`;
+  let html = warns.map(w => sbBanner('err', '⚠', w)).join('');
+  if (gap > 0) html += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno — ${fmtBRL(gapReceb)} de comissão sem responsável. Cubra o período ou siga assim.`);
+  if (over > 0) html += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (contados 2x).`);
+  if (!html && rows.length) html = sbBanner('ok', '✓', 'Tudo certo — todos os pedidos cobertos, sem sobreposição.');
   el.innerHTML = html;
 }
 
@@ -1289,7 +1322,7 @@ function escalaCalcAll() {
   if (!valid.length) return setEscalaMsg('err', 'Adicione ao menos um turno com nome, início e fim.');
   const pct = parseFloat((document.getElementById('escalaPct').value || '100').replace(',', '.')) || 0;
   escalaState.results = valid.map(r => {
-    const sel = escalaState.orders.filter(o => { const dt = orderDT(o); return dt >= r.ini && dt < r.fim; });
+    const sel = escalaState.orders.filter(o => { const dt = orderDT(o); return dt >= r.ini && dt <= r.fim; });
     const liq = sel.filter(o => o.settlement_status === 0);
     const inel = sel.filter(o => o.settlement_status === 1);
     const recebida = liq.reduce((s, o) => s + (parseFloat(o.received_commission) || 0), 0);
@@ -1309,14 +1342,14 @@ function renderEscalaResults() {
   let gap = 0, gapReceb = 0, over = 0;
   escalaState.orders.forEach(o => {
     const dt = orderDT(o);
-    const cov = rows.filter(r => dt >= r.ini && dt < r.fim).length;
+    const cov = rows.filter(r => dt >= r.ini && dt <= r.fim).length;
     if (cov === 0) { gap++; if (o.settlement_status === 0) gapReceb += parseFloat(o.received_commission) || 0; }
     else if (cov > 1) over++;
   });
   let warn = '';
-  if (gap > 0) warn += `<div class="msg" style="margin-bottom:6px;background:var(--orange-soft);color:var(--orange);">⬤ ${gap.toLocaleString('pt-BR')} pedido(s) ficaram FORA de qualquer turno (${fmtBRL(gapReceb)} sem responsável).</div>`;
-  if (over > 0) warn += `<div class="msg msg-err" style="margin-bottom:6px;">⚠ ${over.toLocaleString('pt-BR')} pedido(s) estão em MAIS DE UM turno (comissão contada 2x).</div>`;
-  if (!warn) warn = `<div class="msg msg-ok" style="margin-bottom:6px;">✓ Cobertura completa, sem sobreposição.</div>`;
+  if (gap > 0) warn += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) ficaram fora de qualquer turno — ${fmtBRL(gapReceb)} sem responsável.`);
+  if (over > 0) warn += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (comissão contada 2x).`);
+  if (!warn) warn = sbBanner('ok', '✓', 'Cobertura completa, sem sobreposição.');
   if (el2) el2.innerHTML = warn;
 
   const totPagar = rows.reduce((s, r) => s + r.pagar, 0);

@@ -63,6 +63,11 @@
   const role = await getUserRole();
   if (!role?.is_matriz) { window.location.href = 'dashboard.html'; return; }
   await renderNav('sincronizar');
+  // pré-preenche o período quando vem do Fechamento (dias faltando)
+  const p = new URLSearchParams(location.search);
+  if (p.get('from')) document.getElementById('impFrom').value = p.get('from');
+  if (p.get('to')) document.getElementById('impTo').value = p.get('to');
+  if (p.get('from')) { document.getElementById('freshFrom').value = p.get('from'); document.getElementById('freshTo').value = p.get('to') || p.get('from'); }
 })();
 
 async function loadFreshness() {

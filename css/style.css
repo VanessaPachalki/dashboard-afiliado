@@ -289,6 +289,26 @@ body.has-nav .nav-footer .logout:hover { color:var(--orange); background:var(--c
 .combo-item:last-child { border-bottom:none; }
 .combo-item:hover { background:var(--orange-soft); color:var(--orange); }
 .combo-empty { padding:12px; color:var(--muted); font-size:12px; }
+/* modal push-up (dados faltando) */
+.modal-overlay { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.45); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px; max-width:440px; width:100%; box-shadow:0 24px 60px rgba(0,0,0,0.28); text-align:center; animation:modalPop 0.18s ease-out; }
+@keyframes modalPop { from { transform:scale(0.94); opacity:0; } to { transform:scale(1); opacity:1; } }
+.modal-icon { width:56px; height:56px; border-radius:50%; background:var(--orange-soft); color:var(--orange); font-size:26px; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; }
+.modal-card h3 { margin:0 0 8px; font-size:19px; }
+.modal-card p { color:var(--muted); font-size:14px; margin:0 0 16px; line-height:1.5; }
+.modal-days { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-bottom:22px; }
+.modal-day { background:var(--orange-soft); color:var(--orange); padding:4px 12px; border-radius:20px; font-size:13px; font-weight:700; }
+.modal-actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.modal-actions .btn-primary, .modal-actions .btn-ghost { text-decoration:none; display:inline-block; }
+/* banners de status (cobertura da escala) */
+.status-banner { display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:12px; font-size:13px; font-weight:600; margin-bottom:8px; }
+.status-banner .sb-icon { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.sb-ok { background:rgba(60,179,113,0.12); color:var(--green); }
+.sb-ok .sb-icon { background:var(--green); color:#fff; }
+.sb-warn { background:var(--orange-soft); color:var(--orange); }
+.sb-warn .sb-icon { background:var(--orange); color:#fff; }
+.sb-err { background:rgba(217,83,79,0.12); color:var(--red); }
+.sb-err .sb-icon { background:var(--red); color:#fff; }
 
 @media (max-width:820px) {
   body.has-nav { padding-left:0; }
