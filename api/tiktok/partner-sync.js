@@ -208,7 +208,7 @@ function makeAccountResolver(matrizUid, agencyId) {
 export default async function handler(req, res) {
   try {
     const matrizUid = req.query.owner;
-    if (!matrizUid) return res.status(400).json({ error: 'owner (matriz) obrigatório' });
+    if (!matrizUid && !req.query.debug) return res.status(400).json({ error: 'owner (matriz) obrigatório' });
 
     // 1) conexão partner (token + cipher)
     const parts = await (await sb('tiktok_partner?id=eq.1&select=*')).json();
