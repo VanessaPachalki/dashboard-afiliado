@@ -1561,8 +1561,14 @@ function pdfGeralBlob(g) {
 function reportDataRow(r) {
   const orders = (escalaState.orders || [])
     .filter(o => { const dt = orderDT(o); return dt >= r.ini && dt <= r.fim; })
+    .sort((a, b) => { // status (Liquidado -> Cancelado -> ...) e depois data
+      const sa = STATUS_ORDER[granularStatus(a)] ?? 9, sb = STATUS_ORDER[granularStatus(b)] ?? 9;
+      if (sa !== sb) return sa - sb;
+      const da = orderDT(a), db = orderDT(b);
+      return da < db ? -1 : da > db ? 1 : 0;
+    })
     .map(o => ({
-      product: (o.product_name || '—'), store: o.store_name || '',
+      product: (o.product_name || '-'), store: o.store_name || '',
       status: GRAN_LABEL[granularStatus(o)] || '', receb: Number(o.received_commission) || 0
     }));
   return {
