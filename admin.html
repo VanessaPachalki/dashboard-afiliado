@@ -29,20 +29,25 @@
 <!-- Auxiliares -->
 <div class="admin-section">
   <h2>Auxiliares</h2>
-  <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Pessoas que cobrem turnos nas lives. Os dados de pagamento facilitam o repasse (é o Creator Host que paga).</p>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 12px;">Adicione com <strong>nome e e-mail</strong>. Ao informar o e-mail, o <strong>acesso é liberado</strong> na hora (visão consultiva). Os dados de pagamento (PIX, conta) o próprio auxiliar preenche no perfil dele — aqui você vê e edita se precisar.</p>
   <div class="card" style="margin-bottom:14px;">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;">
       <label class="aux-fld">Nome<input type="text" id="auxNome"></label>
-      <label class="aux-fld">E-mail (login futuro)<input type="email" id="auxEmail"></label>
-      <label class="aux-fld">Telefone<input type="text" id="auxTel"></label>
-      <label class="aux-fld">Tipo PIX
-        <select id="auxPixType"><option value="">—</option><option>CPF</option><option>CNPJ</option><option>E-mail</option><option>Telefone</option><option>Aleatória</option></select></label>
-      <label class="aux-fld">Chave PIX<input type="text" id="auxPix"></label>
-      <label class="aux-fld">Banco<input type="text" id="auxBank"></label>
-      <label class="aux-fld">Agência<input type="text" id="auxAg"></label>
-      <label class="aux-fld">Conta<input type="text" id="auxConta"></label>
-      <label class="aux-fld" style="grid-column:1/-1;">Observações<input type="text" id="auxObs"></label>
+      <label class="aux-fld">E-mail (libera acesso)<input type="email" id="auxEmail"></label>
     </div>
+    <details id="auxPayDetails" style="margin-top:10px;">
+      <summary style="cursor:pointer;font-size:12px;color:var(--orange);font-weight:600;">Dados de pagamento (o auxiliar preenche no perfil — edite aqui se precisar)</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:10px;">
+        <label class="aux-fld">Telefone<input type="text" id="auxTel"></label>
+        <label class="aux-fld">Tipo PIX
+          <select id="auxPixType"><option value="">—</option><option>CPF</option><option>CNPJ</option><option>E-mail</option><option>Telefone</option><option>Aleatória</option></select></label>
+        <label class="aux-fld">Chave PIX<input type="text" id="auxPix"></label>
+        <label class="aux-fld">Banco<input type="text" id="auxBank"></label>
+        <label class="aux-fld">Agência<input type="text" id="auxAg"></label>
+        <label class="aux-fld">Conta<input type="text" id="auxConta"></label>
+        <label class="aux-fld" style="grid-column:1/-1;">Observações<input type="text" id="auxObs"></label>
+      </div>
+    </details>
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="hidden" id="auxId">
       <button class="btn-primary" onclick="saveAuxiliar()">Salvar auxiliar</button>

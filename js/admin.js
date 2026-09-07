@@ -42,6 +42,7 @@ function resetAuxForm() {
   ['auxId', 'auxNome', 'auxEmail', 'auxTel', 'auxPix', 'auxBank', 'auxAg', 'auxConta', 'auxObs'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
   const p = document.getElementById('auxPixType'); if (p) p.value = '';
   const m = document.getElementById('auxMsg'); if (m) { m.className = 'msg'; m.textContent = ''; }
+  const det = document.getElementById('auxPayDetails'); if (det) det.open = false;
 }
 async function saveAuxiliar() {
   const msg = document.getElementById('auxMsg');
@@ -50,7 +51,7 @@ async function saveAuxiliar() {
   if (!name) return set('msg-err', 'Nome é obrigatório.');
   const row = {
     name,
-    email: _auxVal('auxEmail') || null,
+    email: _auxVal('auxEmail').toLowerCase() || null,
     phone: _auxVal('auxTel') || null,
     pix_type: (document.getElementById('auxPixType') || {}).value || null,
     pix_key: _auxVal('auxPix') || null,
@@ -66,7 +67,13 @@ async function saveAuxiliar() {
     ? await sb.from('auxiliares').update(row).eq('id', id)
     : await sb.from('auxiliares').insert(row);
   if (error) return set('msg-err', 'Erro: ' + error.message);
-  set('msg-ok', id ? 'Auxiliar atualizado.' : 'Auxiliar cadastrado.');
+  // e-mail -> libera acesso (visão consultiva) automaticamente
+  let accessNote = '';
+  if (row.email && row.email.includes('@')) {
+    const { error: ce } = await sb.from('creators').upsert({ email: row.email, display_name: row.name, active: true }, { onConflict: 'email' });
+    if (!ce) { accessNote = ' Acesso liberado.'; if (typeof loadCreators === 'function') { await loadCreators(); render(); } }
+  }
+  set('msg-ok', (id ? 'Auxiliar atualizado.' : 'Auxiliar cadastrado.') + accessNote);
   resetAuxForm();
   loadAuxiliares();
 }
@@ -76,6 +83,8 @@ function editAuxiliar(id) {
   put('auxId', a.id); put('auxNome', a.name); put('auxEmail', a.email); put('auxTel', a.phone);
   put('auxPix', a.pix_key); put('auxBank', a.bank_name); put('auxAg', a.bank_agency); put('auxConta', a.bank_account); put('auxObs', a.notes);
   const p = document.getElementById('auxPixType'); if (p) p.value = a.pix_type || '';
+  const hasPay = a.phone || a.pix_key || a.bank_name || a.bank_agency || a.bank_account || a.notes || a.pix_type;
+  const det = document.getElementById('auxPayDetails'); if (det) det.open = !!hasPay;
   document.getElementById('auxNome').focus();
   document.getElementById('auxNome').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
