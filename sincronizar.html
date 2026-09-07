@@ -19,9 +19,8 @@
 <div class="admin-section">
   <h2>Sincronização de pedidos (TikTok)</h2>
   <p style="color:var(--muted);font-size:14px;margin:0 0 14px;">
-    Aqui os pedidos entram no sistema. Dia com pedidos <strong>pendentes</strong> ainda vai mudar (as vendas liquidam
-    depois) — vale re-sincronizar. Dia <strong>final</strong> (0 pendentes) já está fechado. Re-sincronizar é seguro:
-    atualiza, não duplica. A conexão com a TikTok fica em <a href="conta.html" style="color:var(--orange);">Conta</a>.
+    Importe os pedidos da TikTok por dia. Re-sincronizar é seguro (atualiza, não duplica). Conexão em
+    <a href="conta.html" style="color:var(--orange);">Conta</a>.
   </p>
 
   <!-- Importar -->
@@ -34,14 +33,14 @@
         <input type="date" id="impTo" class="btn-sm" style="max-width:160px;"></label>
       <button class="btn-primary" id="impBtn" onclick="importDays()">Importar / atualizar</button>
     </div>
-    <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">Importe dias inteiros. Deixe em branco para o último 1 dia.</p>
+    <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">Em branco = último dia.</p>
     <div class="msg" id="impMsg" style="margin-top:8px;"></div>
   </div>
 
   <!-- Calendário de dias importados -->
   <div style="margin-top:8px;">
     <strong style="font-size:13px;">Dias importados</strong>
-    <p style="color:var(--muted);font-size:12px;margin:4px 0 14px;">Verde = final (0 pendentes) · Laranja = tem pendentes (vale atualizar). Clique num dia para excluir os dados dele.</p>
+    <p style="color:var(--muted);font-size:12px;margin:4px 0 14px;">Clique num dia para excluir.</p>
     <div class="cal-range">
       <button class="cal-range-btn active" data-n="3" onclick="calRange(3)">Últimos 3 meses</button>
       <button class="cal-range-btn" data-n="6" onclick="calRange(6)">Últimos 6</button>

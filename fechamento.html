@@ -93,13 +93,24 @@
 
     <details class="card" style="margin-top:18px;">
       <summary style="cursor:pointer;font-weight:700;font-size:15px;">Detalhes dos pedidos
-        <span style="font-size:12px;color:var(--muted);font-weight:400;">— clique para expandir</span></summary>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 10px;">
-        <input type="text" id="ordersDetailSearch" placeholder="Buscar produto ou loja..." oninput="renderOrdersDetail()" autocomplete="off"
-          style="flex:1;min-width:200px;max-width:300px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+        <span style="font-size:12px;color:var(--muted);font-weight:400;">(clique para ver)</span></summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 12px;align-items:center;">
+        <input type="text" id="ordersDetailSearch" placeholder="Buscar produto ou loja" oninput="renderOrdersDetail()" autocomplete="off"
+          style="flex:1;min-width:180px;max-width:280px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
         <select id="ordersDetailResp" onchange="renderOrdersDetail()"
-          style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
-          <option value="">Todos os responsáveis</option>
+          style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+          <option value="">Todos responsáveis</option>
+        </select>
+        <select id="ordersDetailStatus" onchange="renderOrdersDetail()"
+          style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+          <option value="">Todos status</option>
+          <option value="liquidado">Liquidado</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="devolucao">Devolução</option>
+          <option value="pendente">Pendente</option>
+          <option value="naopago">Não pago</option>
+          <option value="aguardando">Aguardando</option>
+          <option value="analise">Em análise</option>
         </select>
       </div>
       <div id="ordersDetail" style="overflow:auto;max-height:480px;"></div>
@@ -117,7 +128,7 @@
   <div class="modal-card">
     <div class="modal-icon">📅</div>
     <h3>Faltam dados de alguns dias</h3>
-    <p>O período tem dias sem pedidos no sistema. Importe esses dias antes de fechar a escala — ou ajuste o período pra só os dias que você já tem.</p>
+    <p>Importe esses dias, ou ajuste o período.</p>
     <div class="modal-days" id="dataModalDays"></div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeDataModal()">Ajustar período</button>

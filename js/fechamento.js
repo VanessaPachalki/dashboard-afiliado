@@ -443,6 +443,7 @@ let ordDetailSort = { key: 'dt', dir: 'asc' };
 
 // ordem lógica dos status: Liquidado -> Cancelado -> Devolução -> resto
 const STATUS_ORDER = { liquidado: 0, cancelado: 1, devolucao: 2, naopago: 3, pendente: 4, aguardando: 5, analise: 6 };
+const STATUS_COLOR = { liquidado: 'var(--green)', cancelado: '#9B59B6', devolucao: 'var(--red)', pendente: 'var(--cream)', naopago: 'var(--orange)', aguardando: 'var(--muted)', analise: 'var(--muted)' };
 const ORD_DETAIL_VAL = {
   dt: o => orderDT(o),
   resp: o => (o._resp || '').toLowerCase(),
@@ -465,8 +466,10 @@ function renderOrdersDetail() {
   if (!el) return;
   const q = (document.getElementById('ordersDetailSearch')?.value || '').toLowerCase().trim();
   const respFilter = document.getElementById('ordersDetailResp')?.value || '';
+  const statusFilter = document.getElementById('ordersDetailStatus')?.value || '';
   let list = lastTurnoOrders;
   if (respFilter) list = list.filter(o => (o._resp || '') === respFilter);
+  if (statusFilter) list = list.filter(o => granularStatus(o) === statusFilter);
   if (q) list = list.filter(o =>
     (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q) || (o._resp || '').toLowerCase().includes(q));
   // ordenação
@@ -480,31 +483,33 @@ function renderOrdersDetail() {
   });
 
   const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const body = list.map(o => {
+  const body = list.map((o, i) => {
     const k = granularStatus(o);
-    return `<tr style="border-bottom:1px solid var(--border);">
-      <td style="white-space:nowrap;padding:4px 8px;">${fmtDT(orderDT(o))}</td>
-      <td style="padding:4px 8px;">${o._resp ? esc(o._resp) : '<span style="color:var(--muted);">—</span>'}</td>
-      <td style="padding:4px 8px;">${esc((o.product_name || '').slice(0, 40))}</td>
-      <td style="padding:4px 8px;color:var(--muted);">${esc(o.store_name || '')}</td>
-      <td style="padding:4px 8px;">${GRAN_LABEL[k] || k}</td>
-      <td class="r" style="padding:4px 8px;">${fmtBRL(o.estimated_commission)}</td>
-      <td class="r" style="padding:4px 8px;color:var(--green);">${fmtBRL(o.received_commission)}</td>
-      <td class="r" style="padding:4px 8px;">${fmtBRL(o.gmv)}</td>
+    const c = STATUS_COLOR[k] || 'var(--muted)';
+    const zebra = i % 2 ? 'background:var(--bg);' : '';
+    return `<tr style="border-bottom:1px solid var(--border);${zebra}">
+      <td style="white-space:nowrap;padding:7px 10px;">${fmtDT(orderDT(o))}</td>
+      <td style="padding:7px 10px;">${o._resp ? esc(o._resp) : '<span style="color:var(--muted);">sem turno</span>'}</td>
+      <td style="padding:7px 10px;">${esc((o.product_name || '').slice(0, 42))}</td>
+      <td style="padding:7px 10px;color:var(--muted);">${esc(o.store_name || '')}</td>
+      <td style="padding:7px 10px;"><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:${c}22;color:${c};">${GRAN_LABEL[k] || k}</span></td>
+      <td class="r" style="padding:7px 10px;color:var(--muted);">${fmtBRL(o.estimated_commission)}</td>
+      <td class="r" style="padding:7px 10px;font-weight:600;color:var(--green);">${fmtBRL(o.received_commission)}</td>
+      <td class="r" style="padding:7px 10px;">${fmtBRL(o.gmv)}</td>
     </tr>`;
   }).join('');
 
-  const arrow = k => ordDetailSort.key === k ? (ordDetailSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const arrow = k => ordDetailSort.key === k ? (ordDetailSort.dir === 'asc' ? ' ↑' : ' ↓') : '';
   const th = (k, label, cls) =>
-    `<th class="${cls || ''}" onclick="sortOrdersDetail('${k}')" style="padding:4px 8px;cursor:pointer;user-select:none;white-space:nowrap;">${label}${arrow(k)}</th>`;
+    `<th class="${cls || ''}" onclick="sortOrdersDetail('${k}')" style="padding:8px 10px;cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;background:var(--card);z-index:1;border-bottom:2px solid var(--border);">${label}${arrow(k)}</th>`;
   el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
-    <thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">
+    <thead><tr style="text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.3px;">
       ${th('dt', 'Data/Hora')}${th('resp', 'Responsável')}${th('product', 'Produto')}${th('store', 'Loja')}${th('status', 'Status')}
       ${th('est', 'Estimada', 'r')}${th('receb', 'Recebida', 'r')}${th('gmv', 'GMV', 'r')}
     </tr></thead>
-    <tbody>${body || '<tr><td colspan="8" style="color:var(--muted);padding:10px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
+    <tbody>${body || '<tr><td colspan="8" style="color:var(--muted);padding:14px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
   </table>
-  <div style="font-size:11px;color:var(--muted);margin-top:8px;">${list.length} pedido(s)</div>`;
+  <div style="font-size:11px;color:var(--muted);margin-top:10px;">${list.length} pedido(s)</div>`;
 }
 
 function calcularFechamento() {
@@ -1361,9 +1366,9 @@ function escalaCheckLive() {
     else if (cov > 1) over++;
   });
   let html = warns.map(w => sbBanner('err', '⚠', w)).join('');
-  if (gap > 0) html += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno — ${fmtBRL(gapReceb)} de comissão sem responsável. Cubra o período ou siga assim.`);
+  if (gap > 0) html += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno. ${fmtBRL(gapReceb)} sem responsável.`);
   if (over > 0) html += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (contados 2x).`);
-  if (!html && rows.length) html = sbBanner('ok', '✓', 'Tudo certo — todos os pedidos cobertos, sem sobreposição.');
+  if (!html && rows.length) html = sbBanner('ok', '✓', 'Tudo certo. Todos os pedidos cobertos.');
   el.innerHTML = html;
 }
 
@@ -1404,7 +1409,7 @@ function renderEscalaResults() {
     else if (cov > 1) over++;
   });
   let warn = '';
-  if (gap > 0) warn += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) ficaram fora de qualquer turno — ${fmtBRL(gapReceb)} sem responsável.`);
+  if (gap > 0) warn += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno. ${fmtBRL(gapReceb)} sem responsável.`);
   if (over > 0) warn += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (comissão contada 2x).`);
   if (!warn) warn = sbBanner('ok', '✓', 'Cobertura completa, sem sobreposição.');
   if (el2) el2.innerHTML = warn;
