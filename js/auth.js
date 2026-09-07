@@ -29,7 +29,13 @@ async function requireAuth() {
 }
 
 // Papéis: 'matriz' (superadmin, vê tudo) | 'creator' (vê só o dele)
+let _roleCache; // memoiza por carregamento de página (requireAuth + renderNav não duplicam query)
 async function getUserRole() {
+  if (_roleCache !== undefined) return _roleCache;
+  _roleCache = await _computeUserRole();
+  return _roleCache;
+}
+async function _computeUserRole() {
   const session = await getSession();
   if (!session) return null;
 
@@ -124,4 +130,12 @@ async function renderNav(activePage) {
     </div>`;
 
   nav.innerHTML = html;
+
+  // prefetch das páginas do menu -> navegação instantânea
+  if (!window._navPrefetched) {
+    window._navPrefetched = true;
+    const pages = ['fechamento.html', 'historico.html', 'dashboard.html', 'upload.html'];
+    if (isMatriz) pages.push('admin.html', 'conta.html', 'sincronizar.html', 'settings.html');
+    pages.forEach(h => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = h; document.head.appendChild(l); });
+  }
 }

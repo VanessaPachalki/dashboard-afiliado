@@ -94,8 +94,9 @@ function applyBranding(agency) {
   // Update page title
   document.title = document.title.replace('SPACEHUB', agency.name);
 
-  // Show body (was hidden to prevent FOUC)
+  // Show body (was hidden to prevent FOUC) com fade-in suave
   document.body.style.visibility = 'visible';
+  document.body.style.animation = 'fadeInPage 0.18s ease-out';
 }
 
 // --- Step 4: Theme mode (dark/light/auto) ---

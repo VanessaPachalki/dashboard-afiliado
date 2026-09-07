@@ -73,11 +73,19 @@ function turnosConflitam(a, b) {
 // ===== INIT =====
 
 async function initFechamento() {
-  let accQ = sb.from('accounts').select('id, name, email').order('name');
-  if (agencyId()) accQ = accQ.eq('agency_id', agencyId());
-  const { data: accounts } = await accQ;
-
-  allAccountsList = accounts || [];
+  // cache das contas (5 min) — evita re-buscar centenas a cada visita
+  const cacheKey = 'fech_accounts_' + (agencyId() || 'x');
+  try {
+    const c = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+    if (c && c._ts && Date.now() - c._ts < 300000) allAccountsList = c.data || [];
+  } catch (e) {}
+  if (!allAccountsList.length) {
+    let accQ = sb.from('accounts').select('id, name, email').order('name');
+    if (agencyId()) accQ = accQ.eq('agency_id', agencyId());
+    const { data: accounts } = await accQ;
+    allAccountsList = accounts || [];
+    try { sessionStorage.setItem(cacheKey, JSON.stringify({ _ts: Date.now(), data: allAccountsList })); } catch (e) {}
+  }
 
   // (compat) se ainda existir o select de conta de vendedor, popula
   const sellerAccSel = document.getElementById('sellerAccount');
