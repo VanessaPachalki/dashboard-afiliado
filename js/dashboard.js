@@ -71,7 +71,7 @@ async function loadData(targetUserId, accountId) {
     while (hasMore) {
       let query = sb
         .from('orders')
-        .select('month, order_date, hour, day_of_week, gmv, settlement_status, content_type, store_name, product_name, content_id, items_sold, items_refunded, estimated_commission, received_commission')
+        .select('month, order_date, hour, day_of_week, gmv, settlement_status, content_type, store_name, product_name, content_id, items_sold, items_refunded, estimated_commission, received_commission, settle_status_raw')
         .order('order_date', { ascending: false })
         .range(from, from + PAGE - 1);
 
@@ -133,7 +133,8 @@ async function loadData(targetUserId, accountId) {
     r.items_sold,
     r.items_refunded,
     parseFloat(r.estimated_commission),
-    parseFloat(r.received_commission)
+    parseFloat(r.received_commission),
+    r.settle_status_raw || null
   ]);
 
   filtered = RAW;
@@ -481,12 +482,32 @@ function renderComissao(){
   });
 }
 
+// status granular: usa settle_status_raw (5 níveis da API) c/ fallback pro int
+function granRow(r){
+  const raw=String(r[14]||'').toUpperCase();
+  if(raw){
+    if(raw.includes('SETTLED'))return 'liquidado';
+    if(raw.includes('INELIGIBLE'))return r[11]>0?'devolucao':'cancelado';
+    if(raw.includes('UNPAID'))return 'naopago';
+    if(raw.includes('FROZEN'))return 'analise';
+    if(raw.includes('PENDING'))return 'pendente';
+  }
+  const s=r[5];
+  if(s===0)return 'liquidado';
+  if(s===1)return r[11]>0?'devolucao':'cancelado';
+  if(s===3)return 'aguardando';
+  return 'pendente';
+}
+
 function renderStatus(){
-  const st=[0,0,0,0];
-  filtered.forEach(r=>{st[r[5]]++;});
+  const defs=[['liquidado','Liquidado',G],['pendente','Pendente',C],['naopago','Não pago',O],
+    ['cancelado','Cancelado',LK],['devolucao','Devolução',R],['analise','Em análise',GR],['aguardando','Aguardando',GR]];
+  const cnt={};
+  filtered.forEach(r=>{const k=granRow(r);cnt[k]=(cnt[k]||0)+1;});
+  const used=defs.filter(([k])=>cnt[k]>0);
   makeChart('cStatus',{
     type:'doughnut',
-    data:{labels:STLABEL,datasets:[{data:st,backgroundColor:[O,R,C,GR]}]},
+    data:{labels:used.map(d=>d[1]),datasets:[{data:used.map(d=>cnt[d[0]]),backgroundColor:used.map(d=>d[2])}]},
     options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}}}
   });
 }

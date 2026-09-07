@@ -77,8 +77,11 @@ function mapSkuOrder(so, matrizUid, uploadId) {
     product_name: (so.product_name || '').slice(0, 60),
     items_sold: qty,
     items_refunded: refunded,
-    estimated_commission: _amt(so.estimated_standard_commission),  // comissão estimada
-    received_commission: _amt(so.actual_standard_commission)       // recebida (liquidada)
+    // estimada = comissão padrão estimada (bruta, igual col "Comissão padrão estimada")
+    estimated_commission: _amt(so.estimated_standard_commission),
+    // recebida = valor final recebido pelo creator, com FEE DA AGÊNCIA e imposto
+    // já descontados (igual col "Valor total final recebido" do xlsx)
+    received_commission: _amt(so.actual_creator_total_earnings_after_tax)
   };
 }
 
