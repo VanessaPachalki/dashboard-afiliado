@@ -1380,6 +1380,7 @@ function escalaAddRow(iniDT, fimDT) {
   }
   // fim já vem com a DATA certa (= a do início) pra você só ajustar a hora
   const mm = escalaState.liveIni ? `min="${escalaState.liveIni}" max="${escalaState.liveFim}"` : '';
+  const isFirst = !tb.querySelector('tr');               // 1ª linha não pode ser excluída
   const tr = document.createElement('tr');
   tr.dataset.ini = iniDT || '';                          // início NÃO some (não é input editável)
   tr.innerHTML =
@@ -1387,7 +1388,7 @@ function escalaAddRow(iniDT, fimDT) {
      <td><span class="es-ini-lbl" style="font-size:13px;color:var(--muted);white-space:nowrap;">${iniDT ? fmtDT(iniDT) : '—'}</span></td>
      <td><input type="datetime-local" class="es-fim" ${mm} value="${fimDT || iniDT || ''}" oninput="escalaFimChange(this);escalaCheckLive()"></td>
      <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
-     <td><button class="del" title="Remover" onclick="escalaDelRow(this)">×</button></td>`;
+     ${isFirst ? '<td></td>' : '<td><button class="del" title="Remover" onclick="escalaDelRow(this)">×</button></td>'}`;
   tb.appendChild(tr);
   escalaCheckLive();
 }
@@ -1424,7 +1425,7 @@ function escalaFimChange(input) {
   escalaRechain();
 }
 
-function escalaDelRow(btn) { btn.closest('tr').remove(); escalaRechain(); escalaCheckLive(); }
+function escalaDelRow(btn) { const tr = btn.closest('tr'); if (!tr || !tr.previousElementSibling) return; tr.remove(); escalaRechain(); escalaCheckLive(); }
 
 function escalaReadRows() {
   const rows = [];
