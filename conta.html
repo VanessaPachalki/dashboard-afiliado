@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Conta</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Conta</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:900px;">
+
+<!-- Dados da agência -->
+<div class="admin-section">
+  <h2>Conta / Agência</h2>
+  <div id="contaInfo" style="color:var(--muted);font-size:14px;"></div>
+</div>
+
+<!-- TikTok (Partner) -->
+<div class="admin-section">
+  <h2>TikTok Shop — Integração</h2>
+  <p style="color:var(--muted);margin:0 0 12px;font-size:14px;">
+    Autorize uma vez como agência (conta principal) e importe os pedidos de todos os creators
+    automaticamente — com comissão, impostos e o creator de cada venda. Os creators não precisam conectar nada.
+  </p>
+  <div id="ttPartnerStatus" class="msg" style="margin-bottom:12px;"></div>
+  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;">
+    <button class="btn-sm" id="ttConnectBtn" onclick="connectTiktokPartner()">Conectar TikTok (Partner)</button>
+  </div>
+  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
+      De (dia)
+      <input type="date" id="ttSyncFrom" class="btn-sm" style="max-width:170px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
+      Até (dia)
+      <input type="date" id="ttSyncTo" class="btn-sm" style="max-width:170px;">
+    </label>
+    <button class="btn-sm" id="ttSyncBtn" onclick="syncTiktokPartner()">Sincronizar pedidos</button>
+  </div>
+  <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">
+    Importe um dia por vez (ou um período curto). Deixe as datas em branco para o último 1 dia.
+  </p>
+  <div class="msg" id="ttSyncMsg" style="margin-top:10px;"></div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script>
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+  const role = await getUserRole();
+  if (!role?.is_matriz) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  await renderNav('conta');
+  const info = document.getElementById('contaInfo');
+  if (info) info.innerHTML =
+    `<div><strong style="color:var(--text);">${esc((window.AGENCY && window.AGENCY.name) || 'Agência')}</strong></div>
+     <div style="margin-top:4px;">${esc(session.user.email || '')}</div>`;
+  await loadTiktokPartner();
+  showTiktokPartnerReturn();
+})();
+
+// ---- TikTok Partner (matriz) ----
+const TT_SERVICE_ID = '7682323669678786312';
+
+function connectTiktokPartner() {
+  window.location.href = `https://partner.tiktokshop.com/open/authorize?service_id=${TT_SERVICE_ID}&state=partner`;
+}
+
+async function loadTiktokPartner() {
+  const el = document.getElementById('ttPartnerStatus');
+  if (!el) return;
+  try {
+    const { data } = await sb.from('tiktok_partner').select('connected_at,updated_at,scopes').eq('id', 1).maybeSingle();
+    if (data && data.connected_at) {
+      const when = new Date(data.updated_at || data.connected_at).toLocaleString('pt-BR');
+      el.className = 'msg msg-ok';
+      el.textContent = `Conectado ✓ (última atualização: ${when})`;
+    } else {
+      el.className = 'msg';
+      el.textContent = 'Ainda não conectado. Clique em "Conectar TikTok (Partner)" com a conta principal.';
+    }
+  } catch (e) {
+    el.className = 'msg';
+    el.textContent = 'Ainda não conectado.';
+  }
+}
+
+async function syncTiktokPartner() {
+  const msg = document.getElementById('ttSyncMsg');
+  const btn = document.getElementById('ttSyncBtn');
+  const from = document.getElementById('ttSyncFrom')?.value; // "YYYY-MM-DD"
+  const to = document.getElementById('ttSyncTo')?.value;
+  const uid = await myUid();
+  if (!uid) return;
+  // janela FIXA em horário de Brasília (UTC-3) — igual em todos os lotes.
+  let ge, lt;
+  if (from) {
+    ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
+    const endDay = to || from;
+    lt = Math.floor(new Date(endDay + 'T00:00:00-03:00').getTime() / 1000) + 86400;
+  } else {
+    const now = Math.floor(Date.now() / 1000);
+    ge = now - 86400; lt = now;
+  }
+  const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
+
+  if (btn) btn.disabled = true;
+  const setMsg = (cls, txt) => { if (msg) { msg.className = 'msg ' + cls; msg.textContent = txt; } };
+  setMsg('', 'Sincronizando com a TikTok...');
+
+  let pageToken = null, cipher = null, endpoint = null;
+  let grand = 0, batches = 0, totalDisp = null;
+  try {
+    while (batches < 1000) {
+      let url = `/api/tiktok/partner-sync?${base}`;
+      if (pageToken) url += `&page_token=${encodeURIComponent(pageToken)}&cipher=${encodeURIComponent(cipher)}&endpoint=${encodeURIComponent(endpoint)}`;
+      const j = await (await fetch(url)).json();
+      if (!j.ok) { setMsg('msg-err', 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '')); return; }
+      grand += j.imported || 0;
+      cipher = j.cipher || cipher;
+      endpoint = j.endpoint || endpoint;
+      if (j.total_disponivel != null) totalDisp = j.total_disponivel;
+      batches++;
+      setMsg('', `Importando... ${grand.toLocaleString('pt-BR')} pedidos${totalDisp ? ' de ~' + totalDisp.toLocaleString('pt-BR') : ''} (lote ${batches})`);
+      if (j.done || !j.next_page_token) break;
+      pageToken = j.next_page_token;
+    }
+    setMsg('msg-ok', `Pronto! ${grand.toLocaleString('pt-BR')} pedidos importados. Já aparecem no Dashboard e no Fechamento.`);
+  } catch (e) {
+    setMsg('msg-err', `Interrompido após ${grand.toLocaleString('pt-BR')} pedidos. Clique em Sincronizar de novo para continuar.`);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showTiktokPartnerReturn() {
+  const st = new URLSearchParams(window.location.search).get('tiktok');
+  if (!st) return;
+  const el = document.getElementById('ttPartnerStatus');
+  if (!el) return;
+  const map = {
+    partner_connected: ['msg-ok', 'TikTok conectado! Agora clique em "Sincronizar pedidos".'],
+    no_cipher: ['msg-err', 'Conectou mas não veio o cipher — confira os escopos partner do app.'],
+    denied: ['msg-err', 'Autorização cancelada.'],
+    misconfig: ['msg-err', 'Integração não configurada (env vars na Vercel).'],
+    error: ['msg-err', 'Erro ao conectar. Tente de novo.']
+  };
+  const hit = map[st];
+  if (hit) { el.className = 'msg ' + hit[0]; el.textContent = hit[1]; }
+}
+</script>
+</body>
+</html>

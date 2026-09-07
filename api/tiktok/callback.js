@@ -90,7 +90,7 @@ export default async function handler(req, res) {
   const APP_URL = process.env.APP_URL || '';
   const { code, state, error } = req.query;
   const isPartner = state === 'partner';
-  const dest = isPartner ? 'admin.html' : 'upload.html';
+  const dest = isPartner ? 'conta.html' : 'upload.html';
   const back = (status) => res.redirect(302, `${APP_URL}/${dest}?tiktok=${status}`);
 
   try {

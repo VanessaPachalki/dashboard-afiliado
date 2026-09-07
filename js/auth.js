@@ -67,7 +67,7 @@ async function logout() {
   window.location.href = 'index.html';
 }
 
-// Render nav bar with user info
+// Render do menu lateral (agrupado) com info do usuário
 async function renderNav(activePage) {
   const session = await getSession();
   const userInfo = await getUserRole();
@@ -76,21 +76,36 @@ async function renderNav(activePage) {
 
   const nav = document.getElementById('topbar-nav');
   if (!nav) return;
+  document.body.classList.add('has-nav');
 
-  // Creator e matriz usam Dashboard/Upload/Fechamento (isolado por RLS).
-  let links = `
-    <a href="dashboard.html" class="${activePage === 'dashboard' ? 'active' : ''}">Dashboard</a>
-    <a href="upload.html" class="${activePage === 'upload' ? 'active' : ''}">Upload</a>
-    <a href="fechamento.html" class="${activePage === 'fechamento' ? 'active' : ''}">Fechamento</a>
-  `;
-  // Só a matriz tem a visão geral (creators) e a config da marca.
+  const link = (href, label, page) =>
+    `<a href="${href}" class="${activePage === page ? 'active' : ''}">${label}</a>`;
+
+  // OPERAÇÃO — creator e matriz (isolado por RLS)
+  let html = `
+    <div class="nav-group">
+      <div class="nav-group-title">Operação</div>
+      ${link('fechamento.html', 'Fechamento', 'fechamento')}
+      ${link('dashboard.html', 'Dashboard', 'dashboard')}
+      ${link('upload.html', 'Upload', 'upload')}
+    </div>`;
+
+  // GESTÃO — só matriz
   if (isMatriz) {
-    links += `<a href="admin.html" class="${activePage === 'admin' ? 'active' : ''}" style="color:var(--orange);">Matriz</a>`;
-    links += `<a href="settings.html" class="${activePage === 'settings' ? 'active' : ''}">Config</a>`;
+    html += `
+    <div class="nav-group">
+      <div class="nav-group-title">Gestão</div>
+      ${link('admin.html', 'Creators', 'admin')}
+      ${link('conta.html', 'Conta', 'conta')}
+      ${link('settings.html', 'Config', 'settings')}
+    </div>`;
   }
-  links += `
-    <span style="color:var(--muted);font-size:11px;">${name}</span>
-    <a href="#" class="logout" onclick="logout();return false;">Sair</a>
-  `;
-  nav.innerHTML = links;
+
+  html += `
+    <div class="nav-footer">
+      <span class="nav-user">${name}</span>
+      <a href="#" class="logout" onclick="logout();return false;">Sair</a>
+    </div>`;
+
+  nav.innerHTML = html;
 }
