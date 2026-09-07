@@ -144,16 +144,25 @@ async function refreshPartnerToken(part) {
 }
 
 // 1 "upload" fixo pra pendurar os pedidos do partner (bucket da matriz)
-async function ensureUpload(matrizUid) {
+// Retorna { id } ou { error } com o motivo real do Postgres.
+// uploads.agency_id é NOT NULL — precisa vir preenchido.
+async function ensureUpload(matrizUid, agencyId) {
   const q = `uploads?user_id=eq.${matrizUid}&filename=eq.__tiktok_partner__&select=id&limit=1`;
-  const rows = await (await sb(q)).json();
-  if (Array.isArray(rows) && rows[0]) return rows[0].id;
-  const created = await (await sb('uploads', {
+  const sel = await sb(q);
+  if (sel.ok) {
+    const rows = await sel.json();
+    if (Array.isArray(rows) && rows[0]) return { id: rows[0].id };
+  }
+  const resp = await sb('uploads', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({ user_id: matrizUid, filename: '__tiktok_partner__', month_label: 'TikTok Partner' })
-  })).json();
-  return created && created[0] && created[0].id;
+    body: JSON.stringify({ user_id: matrizUid, agency_id: agencyId, filename: '__tiktok_partner__', month_label: 'TikTok Partner' })
+  });
+  const txt = await resp.text();
+  if (!resp.ok) return { error: `uploads insert ${resp.status}: ${txt}` };
+  let created; try { created = JSON.parse(txt); } catch { created = null; }
+  const id = Array.isArray(created) && created[0] ? created[0].id : null;
+  return id ? { id } : { error: `uploads insert sem id: ${txt}` };
 }
 
 // pega o id da agência BRX (todos os dados são filtrados por agency_id)
@@ -174,12 +183,16 @@ function makeAccountResolver(matrizUid, agencyId) {
     const found = await (await sb(q)).json();
     let id = Array.isArray(found) && found[0] ? found[0].id : null;
     if (!id) {
-      const created = await (await sb('accounts', {
+      const resp = await sb('accounts', {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
         body: JSON.stringify({ name, owner_id: matrizUid, agency_id: agencyId, source: 'tiktok_partner' })
-      })).json();
+      });
+      const txt = await resp.text();
+      if (!resp.ok) throw new Error(`accounts insert ${resp.status}: ${txt}`);
+      let created; try { created = JSON.parse(txt); } catch { created = null; }
       id = Array.isArray(created) && created[0] ? created[0].id : null;
+      if (!id) throw new Error(`accounts insert sem id: ${txt}`);
     }
     cache.set(name, id);
     return id;
@@ -204,11 +217,12 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
-    // 3) upload bucket + agência + resolvedor de conta por creator
-    const uploadId = await ensureUpload(matrizUid);
-    if (!uploadId) return res.status(500).json({ error: 'falha ao criar upload' });
+    // 3) agência BRX + upload bucket + resolvedor de conta por creator
     const agencyId = await getAgencyId();
     if (!agencyId) return res.status(500).json({ error: 'agência BRX não encontrada' });
+    const upl = await ensureUpload(matrizUid, agencyId);
+    if (!upl.id) return res.status(500).json({ error: upl.error || 'falha ao criar upload' });
+    const uploadId = upl.id;
     const resolveAccount = makeAccountResolver(matrizUid, agencyId);
 
     // 4) janela de tempo (default últimos 60 dias)
