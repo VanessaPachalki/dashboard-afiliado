@@ -431,6 +431,7 @@ let ordDetailSort = { key: 'dt', dir: 'asc' };
 const STATUS_ORDER = { liquidado: 0, pendente: 1, aguardando: 2, naopago: 3, cancelado: 4, devolucao: 5, analise: 6 };
 const ORD_DETAIL_VAL = {
   dt: o => orderDT(o),
+  resp: o => (o._resp || '').toLowerCase(),
   product: o => (o.product_name || '').toLowerCase(),
   store: o => (o.store_name || '').toLowerCase(),
   status: o => STATUS_ORDER[granularStatus(o)] ?? 9,
@@ -451,7 +452,7 @@ function renderOrdersDetail() {
   const q = (document.getElementById('ordersDetailSearch')?.value || '').toLowerCase().trim();
   let list = lastTurnoOrders;
   if (q) list = list.filter(o =>
-    (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q));
+    (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q) || (o._resp || '').toLowerCase().includes(q));
   // ordenação
   const dir = ordDetailSort.dir === 'asc' ? 1 : -1;
   const val = ORD_DETAIL_VAL[ordDetailSort.key] || ORD_DETAIL_VAL.dt;
@@ -462,7 +463,8 @@ function renderOrdersDetail() {
     const k = granularStatus(o);
     return `<tr style="border-bottom:1px solid var(--border);">
       <td style="white-space:nowrap;padding:4px 8px;">${fmtDT(orderDT(o))}</td>
-      <td style="padding:4px 8px;">${esc((o.product_name || '').slice(0, 42))}</td>
+      <td style="padding:4px 8px;">${o._resp ? esc(o._resp) : '<span style="color:var(--muted);">—</span>'}</td>
+      <td style="padding:4px 8px;">${esc((o.product_name || '').slice(0, 40))}</td>
       <td style="padding:4px 8px;color:var(--muted);">${esc(o.store_name || '')}</td>
       <td style="padding:4px 8px;">${GRAN_LABEL[k] || k}</td>
       <td class="r" style="padding:4px 8px;">${fmtBRL(o.estimated_commission)}</td>
@@ -476,10 +478,10 @@ function renderOrdersDetail() {
     `<th class="${cls || ''}" onclick="sortOrdersDetail('${k}')" style="padding:4px 8px;cursor:pointer;user-select:none;white-space:nowrap;">${label}${arrow(k)}</th>`;
   el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
     <thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">
-      ${th('dt', 'Data/Hora')}${th('product', 'Produto')}${th('store', 'Loja')}${th('status', 'Status')}
+      ${th('dt', 'Data/Hora')}${th('resp', 'Responsável')}${th('product', 'Produto')}${th('store', 'Loja')}${th('status', 'Status')}
       ${th('est', 'Estimada', 'r')}${th('receb', 'Recebida', 'r')}${th('gmv', 'GMV', 'r')}
     </tr></thead>
-    <tbody>${body || '<tr><td colspan="7" style="color:var(--muted);padding:10px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
+    <tbody>${body || '<tr><td colspan="8" style="color:var(--muted);padding:10px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
   </table>
   <div style="font-size:11px;color:var(--muted);margin-top:8px;">${list.length} pedido(s)</div>`;
 }
@@ -786,28 +788,36 @@ function pdfBlob(d) {
     linha('Turno', d.turnoStr);
 
     y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
-    if (qty > 1) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120);
-      doc.text('COMISSÃO TOTAL', 20, y);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(19); doc.setTextColor(60);
-      doc.text(fmtBRL(d.comissao), 20, y + 10); y += 21;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120);
-      doc.text('P/ CREATOR', 20, y);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
-      doc.text(fmtBRL(d.comissao / qty), 20, y + 14); y += 26;
-    } else {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
-      doc.text('COMISSÃO', 20, y);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
-      doc.text(fmtBRL(d.comissao), 20, y + 14); y += 28;
-    }
+    // só o valor que a pessoa recebe (sem "total")
+    const receber = qty > 1 ? d.comissao / qty : d.comissao;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(120);
+    doc.text(qty > 1 ? 'A RECEBER (sua parte da dupla)' : 'A RECEBER', 20, y);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(28); doc.setTextColor(...orange);
+    doc.text(fmtBRL(receber), 20, y + 14); y += 28;
 
     doc.setDrawColor(220); doc.line(20, y, 190, y); y += 12;
     linha('Pedidos pagos', d.liquidados);
     linha('Pedidos inelegíveis', d.inelegiveis);
 
+    // produtos detalhados
+    if (d.orders && d.orders.length) {
+      y += 4; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 9;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(90); doc.text('Produtos', 20, y); y += 7;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(140);
+      doc.text('PRODUTO', 20, y); doc.text('STATUS', 130, y); doc.text('RECEBIDA', 190, y, { align: 'right' }); y += 5;
+      d.orders.forEach(o => {
+        if (y > 285) { doc.addPage(); y = 20; }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(40);
+        doc.text((doc.splitTextToSize(o.product, 105)[0] || o.product), 20, y);
+        doc.setTextColor(120); doc.text(o.status, 130, y);
+        doc.setTextColor(60); doc.text(fmtBRL(o.receb), 190, y, { align: 'right' });
+        y += 5;
+      });
+    }
+
+    if (y > 283) { doc.addPage(); y = 20; }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
-    doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`, 20, 285);
+    doc.text(`${brandName()} · gerado em ${new Date().toLocaleString('pt-BR')}`, 20, y + 8);
 
     resolve(doc.output('blob'));
   };
@@ -870,15 +880,10 @@ function imagemBlob(d) {
   y += 48; divider(y);
 
   y += 80;
-  if (qty > 1) {
-    ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif'; ctx.fillText('COMISSÃO TOTAL', PAD, y);
-    y += 60; ctx.fillStyle = '#1a1a1e'; ctx.font = '800 56px system-ui, sans-serif'; ctx.fillText(fmtBRL(d.comissao), PAD, y);
-    y += 62; ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif'; ctx.fillText(`P/ CREATOR (÷${qty})`, PAD, y);
-    y += 100; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif'; ctx.fillText(fmtBRL(d.comissao / qty), PAD, y);
-  } else {
-    ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif'; ctx.fillText('COMISSÃO', PAD, y);
-    y += 104; ctx.fillStyle = brand; ctx.font = '800 104px system-ui, sans-serif'; ctx.fillText(fmtBRL(d.comissao), PAD, y);
-  }
+  const receber = qty > 1 ? d.comissao / qty : d.comissao;
+  ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif';
+  ctx.fillText(qty > 1 ? 'A RECEBER · sua parte da dupla' : 'A RECEBER', PAD, y);
+  y += 104; ctx.fillStyle = brand; ctx.font = '800 104px system-ui, sans-serif'; ctx.fillText(fmtBRL(receber), PAD, y);
   y += 54; divider(y);
 
   y += 68; rowLR(y, 'Pedidos pagos', String(d.liquidados));
@@ -1408,13 +1413,131 @@ function renderEscalaResults() {
     `<div style="overflow-x:auto;"><table class="escala-table">
       <thead><tr><th>Responsável</th><th>Turno</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">Recebida</th><th class="r">A pagar</th><th class="r">P/ creator</th><th></th></tr></thead>
       <tbody>${body}${totalRow}</tbody></table></div>`;
+
+  // detalhes dos pedidos: cada pedido com o responsável do turno que o cobre
+  lastTurnoOrders = escalaState.orders.map(o => {
+    const dt = orderDT(o);
+    const cov = rows.filter(r => dt >= r.ini && dt <= r.fim);
+    return Object.assign({}, o, { _resp: cov.length === 1 ? cov[0].nome : (cov.length > 1 ? '⚠ vários' : '') });
+  });
+  ordDetailSort = { key: 'dt', dir: 'asc' };
+  const ds = document.getElementById('ordersDetailSearch'); if (ds) ds.value = '';
+  renderOrdersDetail();
+}
+
+// ---- Relatório geral (consolidado da live) ----
+function reportGeralData() {
+  const rows = escalaState.results || [];
+  const host = (document.getElementById('fechAccountSearch') || {}).value || '';
+  return {
+    liveName: `Live ${host}`.trim(), host,
+    periodo: `${fmtDT(escalaState.liveIni)} → ${fmtDT(escalaState.liveFim)}`,
+    pct: escalaState.pct,
+    totalPagar: rows.reduce((s, r) => s + r.pagar, 0),
+    totalRecebida: rows.reduce((s, r) => s + r.recebida, 0),
+    totLiq: rows.reduce((s, r) => s + r.liquidados, 0),
+    totInel: rows.reduce((s, r) => s + r.inelegiveis, 0),
+    turnos: rows.map(r => ({ nome: r.nome, turnoStr: `${fmtDT(r.ini)} → ${fmtDT(r.fim)}`, pagar: r.pagar, porCreator: r.porCreator, qtd: r.qtd }))
+  };
+}
+async function baixarGeral(kind) {
+  if (!(escalaState.results || []).length) { toast('err', 'Calcule a escala primeiro.'); return; }
+  const g = reportGeralData();
+  const blob = kind === 'pdf' ? await pdfGeralBlob(g) : await imagemGeralBlob(g);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const slug = (g.liveName || 'live').replace(/[^\p{L}\p{N}-]+/gu, '_');
+  a.href = url; a.download = `fechamento_geral_${slug}.${kind === 'pdf' ? 'pdf' : 'png'}`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function imagemGeralBlob(g) {
+ return new Promise(resolve => {
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const brand = brandHex();
+  const W = 1080, PAD = 90, rowH = 82;
+  const H = 640 + g.turnos.length * rowH + 140;
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = brand; ctx.fillRect(0, 0, W, 12);
+  const divider = yy => { ctx.strokeStyle = '#ececf0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(PAD, yy); ctx.lineTo(W - PAD, yy); ctx.stroke(); };
+  let y = 240;
+  ctx.textAlign = 'left'; ctx.fillStyle = '#1a1a1e'; ctx.font = '700 42px system-ui, sans-serif'; ctx.fillText(g.liveName, PAD, y);
+  y += 40; ctx.fillStyle = '#8a8a92'; ctx.font = '400 26px system-ui, sans-serif'; ctx.fillText(g.periodo, PAD, y);
+  y += 46; divider(y);
+  y += 78; ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif'; ctx.fillText(`TOTAL A PAGAR · repasse ${g.pct}%`, PAD, y);
+  y += 104; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif'; ctx.fillText(fmtBRL(g.totalPagar), PAD, y);
+  y += 44; ctx.fillStyle = '#8a8a92'; ctx.font = '400 24px system-ui, sans-serif';
+  ctx.fillText(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.totLiq} pagos · ${g.totInel} inelegíveis`, PAD, y);
+  y += 44; divider(y);
+  y += 54; ctx.fillStyle = '#8a8a92'; ctx.font = '700 22px system-ui, sans-serif';
+  ctx.textAlign = 'left'; ctx.fillText('RESPONSÁVEL', PAD, y); ctx.textAlign = 'right'; ctx.fillText('A PAGAR', W - PAD, y); ctx.textAlign = 'left';
+  g.turnos.forEach(t => {
+    y += rowH;
+    ctx.fillStyle = '#1a1a1e'; ctx.font = '700 30px system-ui, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(t.nome + (t.qtd > 1 ? ` (${t.qtd}x)` : ''), PAD, y);
+    ctx.fillStyle = '#8a8a92'; ctx.font = '400 22px system-ui, sans-serif'; ctx.fillText(t.turnoStr, PAD, y + 28);
+    ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '800 34px system-ui, sans-serif'; ctx.fillText(fmtBRL(t.pagar), W - PAD, y);
+    if (t.qtd > 1) { ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`${fmtBRL(t.porCreator)} p/ creator`, W - PAD, y + 26); }
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = '#f2f2f5'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD, y + 46); ctx.lineTo(W - PAD, y + 46); ctx.stroke();
+  });
+  y += 70; ctx.fillStyle = '#b0b0b6'; ctx.font = '400 22px system-ui, sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText(`${brandName()} · gerado em ${new Date().toLocaleString('pt-BR')}`, PAD, y);
+  const finalH = y + 40;
+  const exportar = () => { const out = document.createElement('canvas'); out.width = W; out.height = finalH; out.getContext('2d').drawImage(canvas, 0, 0); out.toBlob(b => resolve(b), 'image/png'); };
+  const drawName = () => { ctx.textAlign = 'left'; ctx.fillStyle = '#1a1a1e'; ctx.font = '900 60px system-ui, sans-serif'; ctx.fillText(brandName(), PAD, 158); };
+  const logoUrl = tenantLogo();
+  if (logoUrl) { const img = new Image(); img.onload = () => { const h = 54, w = img.width * (h / img.height); try { ctx.filter = 'brightness(0)'; } catch (e) {} ctx.drawImage(img, PAD, 104, w, h); ctx.filter = 'none'; exportar(); }; img.onerror = () => { drawName(); exportar(); }; img.src = logoUrl; }
+  else { drawName(); exportar(); }
+ });
+}
+function pdfGeralBlob(g) {
+ return new Promise(resolve => {
+  const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const orange = hexToRgb(brandHex());
+  const logoUrl = tenantLogo();
+  const render = (img) => {
+    const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    if (img) { const h = 12, w = img.width * (h / img.height); doc.addImage(logoUrl, 'PNG', 20, 16, w, h); }
+    else { doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(...orange); doc.text(brandName(), 20, 25); }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(26); doc.text(g.liveName, 20, 40);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120); doc.text(g.periodo, 20, 47);
+    doc.setDrawColor(220); doc.line(20, 52, 190, 52);
+    doc.setFontSize(10); doc.setTextColor(120); doc.text(`TOTAL A PAGAR · repasse ${g.pct}%`, 20, 62);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fmtBRL(g.totalPagar), 20, 74);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.totLiq} pagos · ${g.totInel} inelegíveis`, 20, 81);
+    doc.setDrawColor(220); doc.line(20, 86, 190, 86);
+    let y = 95;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120);
+    doc.text('RESPONSÁVEL', 20, y); doc.text('TURNO', 85, y); doc.text('A PAGAR', 190, y, { align: 'right' }); y += 7;
+    g.turnos.forEach(t => {
+      if (y > 280) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(30); doc.text(t.nome + (t.qtd > 1 ? ` (${t.qtd}x)` : ''), 20, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110); doc.text(t.turnoStr, 85, y);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...orange); doc.text(fmtBRL(t.pagar), 190, y, { align: 'right' });
+      y += 8;
+    });
+    resolve(doc.output('blob'));
+  };
+  if (logoUrl) { const img = new Image(); img.onload = () => render(img); img.onerror = () => render(null); img.src = logoUrl; }
+  else render(null);
+ });
 }
 
 function reportDataRow(r) {
+  const orders = (escalaState.orders || [])
+    .filter(o => { const dt = orderDT(o); return dt >= r.ini && dt <= r.fim; })
+    .map(o => ({
+      product: (o.product_name || '—'), store: o.store_name || '',
+      status: GRAN_LABEL[granularStatus(o)] || '', receb: Number(o.received_commission) || 0
+    }));
   return {
     creator: r.nome, periodo: periodoDe(r.ini, r.fim),
     turnoStr: `${fmtDT(r.ini)} → ${fmtDT(r.fim)}`,
-    comissao: r.pagar, liquidados: r.liquidados, inelegiveis: r.inelegiveis, qty: r.qtd
+    comissao: r.pagar, liquidados: r.liquidados, inelegiveis: r.inelegiveis, qty: r.qtd,
+    orders
   };
 }
 function reportRow(i, kind) {

@@ -80,14 +80,26 @@
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
       <h2 style="margin:0;">Resultado & Relatórios</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn-ghost" onclick="gerarTodos('img')">Baixar imagens</button>
-        <button class="btn-ghost" onclick="gerarTodos('pdf')">Baixar PDFs</button>
-        <button class="btn-primary" onclick="salvarEscala()">Salvar escala</button>
+        <button class="btn-ghost" onclick="baixarGeral('img')">Relatório geral (img)</button>
+        <button class="btn-ghost" onclick="baixarGeral('pdf')">Geral (PDF)</button>
+        <button class="btn-ghost" onclick="gerarTodos('img')">Imagens (zip)</button>
+        <button class="btn-ghost" onclick="gerarTodos('pdf')">PDFs (zip)</button>
+        <button class="btn-primary" onclick="salvarEscala()">Salvar fechamento</button>
       </div>
     </div>
     <div id="escalaResultInfo" class="callout" style="margin-bottom:12px;"></div>
     <div id="escalaConflito2"></div>
     <div id="escalaResults"></div>
+
+    <div class="card" style="margin-top:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+        <h3 style="margin:0;">Detalhes dos pedidos</h3>
+        <input type="text" id="ordersDetailSearch" placeholder="Buscar produto, loja ou responsável..." oninput="renderOrdersDetail()" autocomplete="off"
+          style="max-width:300px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+      </div>
+      <div id="ordersDetail" style="overflow:auto;max-height:480px;"></div>
+    </div>
+
     <div id="escalaSaveMsg" class="msg" style="margin-top:10px;"></div>
     <div class="wnav"><button class="btn-ghost" onclick="wizardGo(1)">← Editar escala</button></div>
   </div>
