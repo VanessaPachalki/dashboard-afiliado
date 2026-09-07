@@ -2,7 +2,7 @@
 // TikTok Shop — config do cliente (app_key é semi-público: vai no link de auth)
 // ================================================
 
-const TIKTOK_APP_KEY = '6l6tft39p5smb';
+const TIKTOK_APP_KEY = '6l6tpfb1cfqdg';
 
 // Link de autorização do CREATOR (state = id do creator, pra ligar o token a ele)
 function tiktokCreatorAuthUrl(state) {
