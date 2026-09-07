@@ -25,6 +25,12 @@ const CONTENT_TYPE_MAP = { LIVE: 0, VIDEO: 1, SHOWCASE: 3, PRODUCT_CARD: 2 };
 
 function mapStatus(s) {
   const u = String(s || '').toUpperCase();
+  // 202603 cap_order: SETTLED | PENDING | INELIGIBLE | CUSTOMER UNPAID | FROZEN
+  if (u.includes('INELIGIBLE')) return 1;          // inelegível (reembolso/cancelado)
+  if (u.includes('SETTLED')) return 0;             // liquidado
+  if (u.includes('UNPAID')) return 3;              // cliente não pagou = aguardando
+  if (u.includes('PENDING') || u.includes('FROZEN')) return 2; // pendente
+  // fallbacks (formatos antigos)
   if (u.includes('UNSETTLE')) return 2;
   if (u.includes('SETTLE')) return 0;
   if (u.includes('INVALID') || u.includes('CANCEL') || u.includes('REFUND')) return 1;
@@ -45,38 +51,34 @@ function brParts(unixSec) {
   return { order_date, month: `${p.year}-${p.month}`, hour, minute: parseInt(p.minute, 10), dow };
 }
 
-// order -> N linhas (1 por SKU). account_id/agency_id são preenchidos depois.
-// Aceita os dois formatos: CAP (cap_order/search) e TAP (orders/search).
-function mapCapOrderToRows(order, matrizUid, uploadId) {
-  const t = brParts(order.create_time || 0);
-  const status = mapStatus(order.status);
-  const skus = Array.isArray(order.skus) ? order.skus : (order.skus ? [order.skus] : []);
-  // comissão: CAP usa estimated_commission/actual_commission;
-  //           TAP usa estimated_creator_commission/actual_creator_commission
-  const est = sku => sku.estimated_commission ?? sku.estimated_creator_commission;
-  const act = sku => sku.actual_commission ?? sku.actual_creator_commission;
-  return skus.map(sku => ({
+// 202603 cap_order/search: data.sku_orders[] já vem 1 item por SKU (flat).
+// Mapeia UM sku_order -> UMA linha. account_id/agency_id preenchidos depois.
+function mapSkuOrder(so, matrizUid, uploadId) {
+  const t = brParts(so.create_time || 0);
+  const qty = _num(so.quantity);
+  const refunded = String(so.fully_return || '').toUpperCase() === 'YES' ? qty : 0;
+  return {
     user_id: matrizUid,
     upload_id: uploadId,
-    tiktok_order_id: String(order.id || ''),
-    sku_id: String(sku.id || ''),
-    creator_username: sku.creator_username || null,
+    tiktok_order_id: String(so.id || ''),
+    sku_id: String(so.sku_id || ''),
+    creator_username: so.creator_username || null,
     month: t.month,
     order_date: t.order_date,
     hour: t.hour,
     minute: t.minute,
     day_of_week: t.dow,
-    gmv: _amt(sku.price),
-    settlement_status: status,
-    content_type: CONTENT_TYPE_MAP[String(sku.content_type || '').toUpperCase()] ?? 0,
-    content_id: String(sku.content_id || '').slice(-6),
-    store_name: sku.shop_name || 'Desconhecida',
-    product_name: (sku.product_name || '').slice(0, 60),
-    items_sold: _num(sku.quantity),
-    items_refunded: _num(sku.refunded_quantity) + _num(sku.returned_quantity),
-    estimated_commission: _amt(est(sku)),
-    received_commission: _amt(act(sku))
-  }));
+    gmv: _amt(so.price),
+    settlement_status: mapStatus(so.settle_status),
+    content_type: CONTENT_TYPE_MAP[String(so.content_type || '').toUpperCase()] ?? 0,
+    content_id: String(so.content_id || '').slice(-6),
+    store_name: so.shop_name || 'Desconhecida',
+    product_name: (so.product_name || '').slice(0, 60),
+    items_sold: qty,
+    items_refunded: refunded,
+    estimated_commission: _amt(so.estimated_standard_commission),  // comissão estimada
+    received_commission: _amt(so.actual_standard_commission)       // recebida (liquidada)
+  };
 }
 
 const TOKEN_HOST = 'https://auth.tiktok-shops.com';
@@ -377,9 +379,9 @@ export default async function handler(req, res) {
       if (data.code && data.code !== 0) {
         return res.status(502).json({ error: 'tiktok api', code: data.code, message: data.message, request_id: data.request_id, endpoint });
       }
-      const list = (data.data && data.data.orders) || [];
-      if (!sample && list[0]) sample = list[0]; // 1º pedido cru pra conferência
-      const rows = list.flatMap(o => mapCapOrderToRows(o, matrizUid, uploadId));
+      const list = (data.data && (data.data.sku_orders || data.data.orders)) || [];
+      if (!sample && list[0]) sample = list[0]; // 1º item cru pra conferência
+      const rows = list.map(o => mapSkuOrder(o, matrizUid, uploadId));
       // atribui cada linha à conta do creator (por @username) + agência BRX
       for (const r of rows) {
         r.account_id = await resolveAccount(r.creator_username);
