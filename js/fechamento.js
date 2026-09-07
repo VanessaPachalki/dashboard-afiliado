@@ -445,6 +445,25 @@ const GRAN_LABEL = {
   cancelado: 'Cancelado', devolucao: 'Devolução', analise: 'Em análise', aguardando: 'Aguardando'
 };
 
+// Distribuição de status (granular) com contagem e % sobre o total de pedidos.
+// Só retorna os status que aparecem. cancelado+devolucao = Inelegível (fiel à TikTok).
+function statusBreakdown(orders) {
+  const c = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, analise: 0, aguardando: 0 };
+  (orders || []).forEach(o => { c[granularStatus(o)]++; });
+  const total = (orders || []).length || 1;
+  const pctOf = n => n / total * 100;
+  return {
+    total: (orders || []).length,
+    inelegiveis: c.cancelado + c.devolucao,
+    items: GRAN_CARDS.filter(([k]) => c[k] > 0).map(([k, label, color]) => ({
+      k, label, color, hex: STATUS_HEX[k] || '#8a8a92', n: c[k], pct: pctOf(c[k])
+    }))
+  };
+}
+// cores hex equivalentes (pro canvas/PDF, onde var(--..) não vale)
+const STATUS_HEX = { liquidado: '#2ECC71', pendente: '#D4A76A', naopago: '#E8873A', cancelado: '#9B59B6', devolucao: '#E74C3C', analise: '#8a8a92', aguardando: '#8a8a92' };
+const pct1 = v => v.toFixed(1).replace('.', ',') + '%';
+
 // Lista de pedidos do turno atual (pra tabela de detalhes + busca + ordenação)
 let lastTurnoOrders = [];
 let ordDetailSort = { key: 'dt', dir: 'asc' };
@@ -1452,8 +1471,16 @@ function renderEscalaResults() {
   if (el2) el2.innerHTML = warn;
 
   const totPagar = rows.reduce((s, r) => s + r.pagar, 0);
+  // distribuição de status (com %) sobre todos os pedidos da live
+  const bd = statusBreakdown(escalaState.orders);
+  const chips = bd.items.map(s =>
+    `<span style="display:inline-flex;align-items:center;gap:6px;background:${s.color}1e;color:${s.color};padding:4px 11px;border-radius:20px;font-size:12px;font-weight:700;">
+       <span style="width:8px;height:8px;border-radius:50%;background:${s.color};"></span>${s.label}: ${s.n} <span style="opacity:.75;font-weight:600;">${pct1(s.pct)}</span></span>`).join('');
+  const inelNote = bd.inelegiveis > 0
+    ? `<div style="font-size:11px;color:var(--muted);margin-top:7px;">Inelegíveis (${bd.inelegiveis}) = Cancelados + Devoluções — não geram comissão.</div>` : '';
   document.getElementById('escalaResultInfo').innerHTML =
-    `<strong>${rows.length}</strong> turno(s) · repasse <strong>${escalaState.pct}%</strong> · total a pagar <strong>${fmtBRL(totPagar)}</strong> · período ${fmtDT(escalaState.min)} a ${fmtDT(escalaState.max)}`;
+    `<strong>${rows.length}</strong> turno(s) · repasse <strong>${escalaState.pct}%</strong> · total a pagar <strong>${fmtBRL(totPagar)}</strong> · período ${fmtDT(escalaState.min)} a ${fmtDT(escalaState.max)}
+     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">${chips}</div>${inelNote}`;
 
   const body = rows.map((r, i) => `<tr>
       <td>${esc(r.nome)}${r.qtd > 1 ? ` <span style="color:var(--muted);">(${r.qtd}x)</span>` : ''}</td>
@@ -1506,6 +1533,7 @@ function reportGeralData() {
     totalRecebida: rows.reduce((s, r) => s + r.recebida, 0),
     totLiq: rows.reduce((s, r) => s + r.liquidados, 0),
     totInel: rows.reduce((s, r) => s + r.inelegiveis, 0),
+    statusDist: statusBreakdown(escalaState.orders),
     turnos: rows.map(r => ({ nome: r.nome, turnoStr: `${fmtDT(r.ini)} → ${fmtDT(r.fim)}`, pagar: r.pagar, porCreator: r.porCreator, qtd: r.qtd }))
   };
 }
@@ -1524,7 +1552,8 @@ function imagemGeralBlob(g) {
   const fmtBRL = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const brand = brandHex();
   const W = 1080, PAD = 90, rowH = 82;
-  const H = 640 + g.turnos.length * rowH + 140;
+  const distN = (g.statusDist && g.statusDist.items.length) || 0;
+  const H = 640 + g.turnos.length * rowH + 140 + (distN ? distN * 42 + 130 : 0);
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
@@ -1537,8 +1566,28 @@ function imagemGeralBlob(g) {
   y += 78; ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif'; ctx.fillText(`TOTAL A PAGAR · repasse ${g.pct}%`, PAD, y);
   y += 104; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif'; ctx.fillText(fmtBRL(g.totalPagar), PAD, y);
   y += 44; ctx.fillStyle = '#8a8a92'; ctx.font = '400 24px system-ui, sans-serif';
-  ctx.fillText(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.totLiq} pagos · ${g.totInel} inelegíveis`, PAD, y);
+  ctx.fillText(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.statusDist ? g.statusDist.total : 0} pedidos no total`, PAD, y);
   y += 44; divider(y);
+  // distribuição de status (contagem + %)
+  const dist = g.statusDist;
+  if (dist && dist.items.length) {
+    y += 52; ctx.fillStyle = '#8a8a92'; ctx.font = '700 22px system-ui, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('STATUS DOS PEDIDOS', PAD, y);
+    dist.items.forEach(s => {
+      y += 42;
+      ctx.fillStyle = s.hex; ctx.beginPath(); ctx.arc(PAD + 9, y - 8, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1a1a1e'; ctx.font = '600 25px system-ui, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(s.label, PAD + 32, y);
+      ctx.textAlign = 'right'; ctx.font = '700 25px system-ui, sans-serif';
+      ctx.fillText(`${s.n}  ·  ${pct1(s.pct)}`, W - PAD, y);
+      ctx.textAlign = 'left';
+    });
+    if (dist.inelegiveis > 0) {
+      y += 36; ctx.fillStyle = '#b0b0b6'; ctx.font = '400 19px system-ui, sans-serif';
+      ctx.fillText(`Inelegíveis (${dist.inelegiveis}) = Cancelados + Devoluções — não geram comissão`, PAD, y);
+    }
+    y += 44; divider(y);
+  }
   y += 54; ctx.fillStyle = '#8a8a92'; ctx.font = '700 22px system-ui, sans-serif';
   ctx.textAlign = 'left'; ctx.fillText('RESPONSÁVEL', PAD, y); ctx.textAlign = 'right'; ctx.fillText('A PAGAR', W - PAD, y); ctx.textAlign = 'left';
   g.turnos.forEach(t => {
@@ -1576,9 +1625,26 @@ function pdfGeralBlob(g) {
     doc.setFontSize(10); doc.setTextColor(120); doc.text(`TOTAL A PAGAR · repasse ${g.pct}%`, 20, 62);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fmtBRL(g.totalPagar), 20, 74);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.totLiq} pagos · ${g.totInel} inelegíveis`, 20, 81);
+    doc.text(`Recebida ${fmtBRL(g.totalRecebida)} · ${g.statusDist ? g.statusDist.total : 0} pedidos no total`, 20, 81);
     doc.setDrawColor(220); doc.line(20, 86, 190, 86);
     let y = 95;
+    // distribuição de status (contagem + %)
+    const dist = g.statusDist;
+    if (dist && dist.items.length) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120); doc.text('STATUS DOS PEDIDOS', 20, y); y += 7;
+      dist.items.forEach(s => {
+        const rgb = hexToRgb(s.hex);
+        doc.setFillColor(...rgb); doc.circle(22, y - 1.4, 1.6, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(40); doc.text(pdfSafe(s.label), 27, y);
+        doc.setFont('helvetica', 'bold'); doc.text(`${s.n}   ${pct1(s.pct)}`, 190, y, { align: 'right' });
+        y += 6.5;
+      });
+      if (dist.inelegiveis > 0) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(`Inelegiveis (${dist.inelegiveis}) = Cancelados + Devolucoes - nao geram comissao`, 20, y); y += 5;
+      }
+      doc.setDrawColor(220); doc.line(20, y + 1, 190, y + 1); y += 10;
+    }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120);
     doc.text('RESPONSÁVEL', 20, y); doc.text('TURNO', 85, y); doc.text('A PAGAR', 190, y, { align: 'right' }); y += 7;
     g.turnos.forEach(t => {
