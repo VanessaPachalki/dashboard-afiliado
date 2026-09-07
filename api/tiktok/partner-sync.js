@@ -249,6 +249,29 @@ export default async function handler(req, res) {
       return res.status(200).json({ debug: true, scopes: part.scopes, stored_cipher: part.category_asset_cipher, category_assets: caj });
     }
 
+    // DEBUG=sample: mostra 1-2 pedidos CRUS do CAP (Creator Management) pra ver a estrutura real
+    if (req.query.debug === 'sample') {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 3));
+      const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
+      const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
+      const data = await signedPost(CAP_ORDER_PATH,
+        { category_asset_cipher: part.category_asset_cipher, page_size: '2' },
+        { create_time_ge: ge, create_time_lt: lt }, accessToken);
+      const d = data && data.data;
+      const firstOrder = d && Array.isArray(d.orders) ? d.orders[0] : null;
+      return res.status(200).json({
+        debug: 'sample',
+        code: data && data.code, message: data && data.message,
+        data_keys: d ? Object.keys(d) : null,
+        total_count: d && d.total_count,
+        orders_len: d && Array.isArray(d.orders) ? d.orders.length : null,
+        first_order_keys: firstOrder ? Object.keys(firstOrder) : null,
+        first_order: firstOrder,
+        raw_data_preview: d
+      });
+    }
+
     // DEBUG=probe: testa CAP e TAP em cada categoria e conta os pedidos (sem importar)
     if (req.query.debug === 'probe') {
       const nowSec = Math.floor(Date.now() / 1000);
