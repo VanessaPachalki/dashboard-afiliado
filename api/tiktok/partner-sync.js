@@ -45,11 +45,16 @@ function brParts(unixSec) {
   return { order_date, month: `${p.year}-${p.month}`, hour, minute: parseInt(p.minute, 10), dow };
 }
 
-// cap_order -> N linhas (1 por SKU). account_id/agency_id são preenchidos depois.
+// order -> N linhas (1 por SKU). account_id/agency_id são preenchidos depois.
+// Aceita os dois formatos: CAP (cap_order/search) e TAP (orders/search).
 function mapCapOrderToRows(order, matrizUid, uploadId) {
   const t = brParts(order.create_time || 0);
   const status = mapStatus(order.status);
   const skus = Array.isArray(order.skus) ? order.skus : (order.skus ? [order.skus] : []);
+  // comissão: CAP usa estimated_commission/actual_commission;
+  //           TAP usa estimated_creator_commission/actual_creator_commission
+  const est = sku => sku.estimated_commission ?? sku.estimated_creator_commission;
+  const act = sku => sku.actual_commission ?? sku.actual_creator_commission;
   return skus.map(sku => ({
     user_id: matrizUid,
     upload_id: uploadId,
@@ -69,14 +74,15 @@ function mapCapOrderToRows(order, matrizUid, uploadId) {
     product_name: (sku.product_name || '').slice(0, 60),
     items_sold: _num(sku.quantity),
     items_refunded: _num(sku.refunded_quantity) + _num(sku.returned_quantity),
-    estimated_commission: _amt(sku.estimated_commission),
-    received_commission: _amt(sku.actual_commission)
+    estimated_commission: _amt(est(sku)),
+    received_commission: _amt(act(sku))
   }));
 }
 
 const TOKEN_HOST = 'https://auth.tiktok-shops.com';
 const API_HOST = 'https://open-api.tiktokglobalshop.com';
-const CAP_ORDER_PATH = '/affiliate_partner/202504/cap_order/search';
+const CAP_ORDER_PATH = '/affiliate_partner/202504/cap_order/search';   // precisa "Read CAP earnings order"
+const TAP_ORDER_PATH = '/affiliate_partner/202411/orders/search';      // fallback (usa escopo de campanha TAP)
 
 // HMAC-SHA256: base = app_secret + path + {sortedKey}{value}... (+ body cru) + app_secret
 function signRequest(path, queryParams, bodyStr, appSecret) {
@@ -231,6 +237,32 @@ export default async function handler(req, res) {
     const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
     const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
 
+    // 4.1) escolhe o endpoint: tenta CAP; se faltar escopo (105005), cai pro TAP.
+    let orderPath = CAP_ORDER_PATH;
+    let endpoint = 'cap';
+    {
+      const probe = await signedPost(CAP_ORDER_PATH,
+        { category_asset_cipher: part.category_asset_cipher, page_size: '1' },
+        { create_time_ge: ge, create_time_lt: lt }, accessToken);
+      if (probe.code === 105005) {
+        const probeTap = await signedPost(TAP_ORDER_PATH,
+          { category_asset_cipher: part.category_asset_cipher, page_size: '1' },
+          { create_time_ge: ge, create_time_lt: lt }, accessToken);
+        if (probeTap.code && probeTap.code !== 0) {
+          return res.status(502).json({
+            error: 'sem escopo pros dois endpoints de pedidos',
+            cap: { code: 105005, message: probe.message },
+            tap: { code: probeTap.code, message: probeTap.message },
+            hint: 'ative "Read CAP earnings order" (ou o escopo de TAP orders), aprove e reautorize',
+            request_id: probeTap.request_id
+          });
+        }
+        orderPath = TAP_ORDER_PATH; endpoint = 'tap';
+      } else if (probe.code && probe.code !== 0) {
+        return res.status(502).json({ error: 'tiktok api', code: probe.code, message: probe.message, request_id: probe.request_id });
+      }
+    }
+
     // 5) paginação
     let pageToken = '';
     let total = 0, pages = 0;
@@ -242,9 +274,9 @@ export default async function handler(req, res) {
         page_size: '50',
         ...(pageToken ? { page_token: pageToken } : {})
       };
-      const data = await signedPost(CAP_ORDER_PATH, query, { create_time_ge: ge, create_time_lt: lt }, accessToken);
+      const data = await signedPost(orderPath, query, { create_time_ge: ge, create_time_lt: lt }, accessToken);
       if (data.code && data.code !== 0) {
-        return res.status(502).json({ error: 'tiktok api', code: data.code, message: data.message, request_id: data.request_id });
+        return res.status(502).json({ error: 'tiktok api', code: data.code, message: data.message, request_id: data.request_id, endpoint });
       }
       const list = (data.data && data.data.orders) || [];
       if (!sample && list[0]) sample = list[0]; // 1º pedido cru pra conferência
@@ -275,7 +307,7 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({
-      ok: true, imported: total, pages,
+      ok: true, imported: total, pages, endpoint,
       creators: creatorsSet.size,
       window: { ge, lt, days },
       sample: sample ? { id: sample.id, status: sample.status, create_time: sample.create_time,
