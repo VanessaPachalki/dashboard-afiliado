@@ -38,15 +38,25 @@
     <div class="msg" id="impMsg" style="margin-top:8px;"></div>
   </div>
 
-  <!-- Frescor -->
-  <div class="add-row" style="align-items:flex-end;gap:10px;">
-    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">De
-      <input type="date" id="freshFrom" class="btn-sm" style="max-width:160px;"></label>
-    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">Até
-      <input type="date" id="freshTo" class="btn-sm" style="max-width:160px;"></label>
-    <button class="btn-ghost" onclick="loadFreshness()">Ver dias importados</button>
+  <!-- Calendário de dias importados -->
+  <div style="margin-top:8px;">
+    <strong style="font-size:13px;">Dias importados</strong>
+    <p style="color:var(--muted);font-size:12px;margin:4px 0 14px;">Verde = final (0 pendentes) · Laranja = tem pendentes (vale atualizar). Clique num dia para excluir os dados dele.</p>
+    <div class="cal">
+      <div class="cal-header">
+        <button onclick="calMove(-1)" title="Mês anterior">‹</button>
+        <strong id="calTitle"></strong>
+        <button onclick="calMove(1)" title="Próximo mês">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-legend">
+        <span><span class="cal-dot" style="background:var(--green);"></span>Final</span>
+        <span><span class="cal-dot" style="background:var(--orange);"></span>Pendentes</span>
+        <span><span class="cal-dot" style="background:var(--border);"></span>Sem dados</span>
+      </div>
+    </div>
+    <div class="msg" id="calMsg" style="margin-top:10px;"></div>
   </div>
-  <div id="freshList" style="margin-top:16px;"></div>
 </div>
 
 </div>
@@ -63,31 +73,63 @@
   const role = await getUserRole();
   if (!role?.is_matriz) { window.location.href = 'dashboard.html'; return; }
   await renderNav('sincronizar');
-  // pré-preenche o período quando vem do Fechamento (dias faltando)
   const p = new URLSearchParams(location.search);
   if (p.get('from')) document.getElementById('impFrom').value = p.get('from');
   if (p.get('to')) document.getElementById('impTo').value = p.get('to');
-  if (p.get('from')) { document.getElementById('freshFrom').value = p.get('from'); document.getElementById('freshTo').value = p.get('to') || p.get('from'); }
+  // calendário no mês do ?from (ou mês atual)
+  const base = p.get('from') ? new Date(p.get('from') + 'T12:00:00') : new Date();
+  calY = base.getFullYear(); calM = base.getMonth();
+  loadCalendar();
 })();
 
-async function loadFreshness() {
-  const from = document.getElementById('freshFrom').value;
-  const to = document.getElementById('freshTo').value;
-  const el = document.getElementById('freshList');
-  if (!from || !to) { el.innerHTML = '<div class="msg msg-err">Selecione De e Até.</div>'; return; }
-  el.innerHTML = '<div class="msg">Carregando...</div>';
-  const { data, error } = await sb.rpc('fech_days', { p_from: from, p_to: to });
-  if (error) { el.innerHTML = `<div class="msg msg-err">Erro: ${error.message} (rodou a migration fech-days-summary.sql?)</div>`; return; }
-  if (!data || !data.length) { el.innerHTML = '<div class="msg">Nenhum pedido nesse período. Importe acima.</div>'; return; }
-  const fmtDay = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
-  el.innerHTML = `<table class="freshness"><thead><tr><th>Dia</th><th class="r">Pedidos</th><th>Status</th></tr></thead><tbody>` +
-    data.map(r => {
-      const pend = Number(r.pendentes);
-      const badge = pend > 0
-        ? `<span class="badge badge-pend">⟳ ${pend.toLocaleString('pt-BR')} pendentes — vale atualizar</span>`
-        : `<span class="badge badge-final">✓ Final</span>`;
-      return `<tr><td>${fmtDay(r.order_date)}</td><td class="r">${Number(r.total).toLocaleString('pt-BR')}</td><td>${badge}</td></tr>`;
-    }).join('') + `</tbody></table>`;
+// ---- Calendário de dias importados ----
+let calY, calM;
+function calMove(delta) {
+  calM += delta;
+  if (calM < 0) { calM = 11; calY--; }
+  if (calM > 11) { calM = 0; calY++; }
+  loadCalendar();
+}
+async function loadCalendar() {
+  const first = `${calY}-${String(calM + 1).padStart(2, '0')}-01`;
+  const lastDay = new Date(calY, calM + 1, 0).getDate();
+  const last = `${calY}-${String(calM + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  document.getElementById('calTitle').textContent =
+    new Date(calY, calM, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const grid = document.getElementById('calGrid');
+  const calMsg = document.getElementById('calMsg');
+  const { data, error } = await sb.rpc('fech_days', { p_from: first, p_to: last });
+  const map = {};
+  if (!error && data) data.forEach(r => map[r.order_date] = { total: Number(r.total), pend: Number(r.pendentes) });
+  const wds = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  let html = wds.map(w => `<div class="cal-wd">${w}</div>`).join('');
+  const firstDow = new Date(calY, calM, 1).getDay();
+  for (let i = 0; i < firstDow; i++) html += `<div class="cal-day empty"></div>`;
+  for (let d = 1; d <= lastDay; d++) {
+    const iso = `${calY}-${String(calM + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const info = map[iso];
+    if (info) {
+      const cls = info.pend > 0 ? 'pend' : 'final';
+      html += `<div class="cal-day has ${cls}" onclick="calDayClick('${iso}',${info.total},${info.pend})"><span>${d}</span><span class="cal-cnt">${info.total.toLocaleString('pt-BR')}</span></div>`;
+    } else {
+      html += `<div class="cal-day"><span>${d}</span></div>`;
+    }
+  }
+  grid.innerHTML = html;
+  calMsg.className = 'msg'; calMsg.textContent = '';
+  if (error) { calMsg.className = 'msg msg-err'; calMsg.textContent = `Erro ao carregar dias: ${error.message} (rodou a migration fech-days-summary.sql?)`; }
+}
+async function calDayClick(iso, total, pend) {
+  const [y, m, d] = iso.split('-');
+  if (!confirm(`Dia ${d}/${m}/${y}: ${total.toLocaleString('pt-BR')} pedidos${pend ? ` (${pend} pendentes)` : ''}.\n\nExcluir TODOS os pedidos desse dia (de todos os creators)? Você pode re-importar depois.`)) return;
+  const calMsg = document.getElementById('calMsg');
+  calMsg.className = 'msg'; calMsg.textContent = 'Excluindo...';
+  let q = sb.from('orders').delete().eq('order_date', iso);
+  if (agencyId()) q = q.eq('agency_id', agencyId());
+  const { error } = await q;
+  if (error) { calMsg.className = 'msg msg-err'; calMsg.textContent = 'Erro ao excluir: ' + error.message; return; }
+  calMsg.className = 'msg msg-ok'; calMsg.textContent = `Dia ${d}/${m} excluído.`;
+  loadCalendar();
 }
 
 async function importDays() {

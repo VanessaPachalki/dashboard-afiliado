@@ -309,6 +309,23 @@ body.has-nav .nav-footer .logout:hover { color:var(--orange); background:var(--c
 .sb-warn .sb-icon { background:var(--orange); color:#fff; }
 .sb-err { background:rgba(217,83,79,0.12); color:var(--red); }
 .sb-err .sb-icon { background:var(--red); color:#fff; }
+/* calendário de dias importados */
+.cal { max-width:440px; }
+.cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.cal-header button { background:transparent; border:1px solid var(--border); border-radius:8px; width:34px; height:34px; cursor:pointer; color:var(--text); font-size:16px; }
+.cal-header button:hover { border-color:var(--orange); color:var(--orange); }
+.cal-header strong { text-transform:capitalize; font-size:15px; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+.cal-wd { text-align:center; font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; padding-bottom:2px; }
+.cal-day { aspect-ratio:1; border:1px solid var(--border); border-radius:10px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:13px; color:var(--muted); }
+.cal-day.empty { border:none; }
+.cal-day.has { cursor:pointer; }
+.cal-day.final { background:rgba(60,179,113,0.14); border-color:rgba(60,179,113,0.45); color:var(--green); font-weight:700; }
+.cal-day.pend { background:var(--orange-soft); border-color:var(--orange); color:var(--orange); font-weight:700; }
+.cal-day .cal-cnt { font-size:9px; opacity:0.85; margin-top:1px; }
+.cal-day.has:hover { filter:brightness(0.96); }
+.cal-legend { margin-top:14px; font-size:12px; color:var(--muted); display:flex; gap:16px; flex-wrap:wrap; }
+.cal-dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:middle; }
 
 @media (max-width:820px) {
   body.has-nav { padding-left:0; }

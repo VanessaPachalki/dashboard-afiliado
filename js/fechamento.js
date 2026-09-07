@@ -1203,9 +1203,14 @@ async function escalaCarregarPeriodo() {
   if (!escalaState.orders.length) {
     if (box) box.style.display = 'none';
     setEscalaMsg('err', 'Ainda não há pedidos desse período no sistema.');
-    if (confirm('Ainda não há dados desse período no sistema.\n\nIr para a Sincronização para importar da TikTok?')) {
-      window.location.href = 'sincronizar.html';
+    // período inteiro sem dados -> mesmo modal bonito (todos os dias faltando)
+    const allDays = [];
+    const dd = new Date(from + 'T12:00:00'), ee = new Date(to + 'T12:00:00');
+    while (dd <= ee) {
+      allDays.push(`${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`);
+      dd.setDate(dd.getDate() + 1);
     }
+    showDataModal(allDays);
     return;
   }
   let mn = null, mx = null;
@@ -1230,7 +1235,7 @@ async function escalaCarregarPeriodo() {
   document.getElementById('escalaRange').textContent =
     `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
   if (box) box.style.display = '';
-  setEscalaMsg('ok', `${escalaState.orders.length} pedidos carregados — período completo.`);
+  setEscalaMsg('', ''); // o range acima já mostra a contagem
   document.getElementById('escalaRows').innerHTML = '';
   escalaAddRow(mn, mx); // 1ª linha já cobrindo o período todo
 }
@@ -1272,7 +1277,7 @@ function escalaAddRow(ini, fim) {
   tr.innerHTML =
     `<td><input class="es-nome" placeholder="Nome do responsável" oninput="escalaCheckLive()"></td>
      <td><input type="datetime-local" class="es-ini" ${mm} value="${ini || ''}" oninput="escalaCheckLive()"></td>
-     <td><input type="datetime-local" class="es-fim" ${mm} value="${fim || ''}" oninput="escalaCheckLive()"></td>
+     <td><input type="datetime-local" class="es-fim" ${mm} value="${fim || ''}" oninput="escalaSyncNext(this);escalaCheckLive()"></td>
      <td class="col-qtd"><input class="es-qtd" type="number" min="1" step="1" value="1" oninput="escalaCheckLive()"></td>
      <td><button class="del" title="Remover" onclick="this.closest('tr').remove();escalaCheckLive()">×</button></td>`;
   tb.appendChild(tr);
@@ -1292,10 +1297,22 @@ function escalaReadRows() {
 }
 
 // checagem em tempo real: sobreposição entre turnos + gap/overlap vs pedidos
+function escalaSyncNext(fimInput) {
+  const tr = fimInput.closest('tr');
+  const next = tr && tr.nextElementSibling;
+  if (next && fimInput.value) {
+    const ni = next.querySelector('.es-ini');
+    if (ni) ni.value = addMin(fimInput.value, 1);
+  }
+}
+
 function escalaCheckLive() {
   const el = document.getElementById('escalaConflito');
   if (!el || !escalaState.orders) return;
-  const rows = escalaReadRows().filter(r => r.ini && r.fim && r.ini < r.fim);
+  const allRows = escalaReadRows();
+  // não mostra nada até começar a preencher (evita "tudo certo" prematuro)
+  if (!allRows.some(r => r.nome)) { el.innerHTML = ''; return; }
+  const rows = allRows.filter(r => r.ini && r.fim && r.ini < r.fim);
   const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const warns = [];
   for (let i = 0; i < rows.length; i++)
