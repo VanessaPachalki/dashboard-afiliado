@@ -228,7 +228,7 @@ function makeAccountResolver(matrizUid, agencyId) {
 export default async function handler(req, res) {
   try {
     const matrizUid = req.query.owner;
-    if (!matrizUid && !req.query.debug) return res.status(400).json({ error: 'owner (matriz) obrigatório' });
+    if (!matrizUid) return res.status(400).json({ error: 'owner (matriz) obrigatório' });
 
     // 1) conexão partner (token + cipher)
     const parts = await (await sb('tiktok_partner?id=eq.1&select=*')).json();
@@ -241,135 +241,6 @@ export default async function handler(req, res) {
     if (part.access_expire_at && new Date(part.access_expire_at).getTime() < Date.now() + 60000) {
       accessToken = await refreshPartnerToken(part);
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
-    }
-
-    // DEBUG=tz: busca 1 pedido por order_id e mostra create_time em UTC e Brasília
-    if (req.query.debug === 'tz') {
-      const orderId = String(req.query.order_id || '');
-      const data = await signedPost(CAP_ORDER_PATH,
-        { category_asset_cipher: part.category_asset_cipher, page_size: '10' },
-        { order_id: orderId }, accessToken);
-      const list = (data.data && data.data.sku_orders) || [];
-      const fmtBR = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-      });
-      const out = list.slice(0, 5).map(so => ({
-        id: so.id, sku_id: so.sku_id, create_time: so.create_time,
-        utc: new Date((so.create_time || 0) * 1000).toISOString(),
-        brasilia: fmtBR.format(new Date((so.create_time || 0) * 1000))
-      }));
-      return res.status(200).json({ debug: 'tz', order_id: orderId, code: data.code, message: data.message, orders: out });
-    }
-
-    // DEBUG=verify: puxa a API e agrega UM creator (compara com o xlsx). Não grava nada.
-    if (req.query.debug === 'verify') {
-      const creator = String(req.query.creator || '').toLowerCase();
-      const nowSec = Math.floor(Date.now() / 1000);
-      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 3));
-      const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
-      const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
-      const cipher = part.category_asset_cipher;
-      const amt = o => (o && o.amount != null ? (Number(o.amount) || 0) : 0);
-      const r2 = x => Math.round(x * 100) / 100;
-      let pageToken = '', pages = 0, n = 0;
-      const st = {}; let estPending = 0, price = 0;
-      const settledSums = {}; // soma de TODOS os campos {amount} dos LIQUIDADOS
-      while (pages < 300) {
-        const q = { category_asset_cipher: cipher, page_size: '100', ...(pageToken ? { page_token: pageToken } : {}) };
-        const data = await signedPost(CAP_ORDER_PATH, q, { create_time_ge: ge, create_time_lt: lt }, accessToken);
-        if (data.code && data.code !== 0) return res.status(502).json({ error: 'api', code: data.code, message: data.message });
-        const list = (data.data && data.data.sku_orders) || [];
-        for (const so of list) {
-          if (creator && String(so.creator_username || '').toLowerCase() !== creator) continue;
-          n++;
-          const s = String(so.settle_status || '').toUpperCase();
-          st[s] = (st[s] || 0) + 1;
-          price += amt(so.price);
-          if (s.includes('PENDING')) estPending += amt(so.estimated_standard_commission);
-          if (s.includes('SETTLED')) {
-            for (const [k, v] of Object.entries(so)) {
-              if (v && typeof v === 'object' && v.amount != null) {
-                settledSums[k] = (settledSums[k] || 0) + (Number(v.amount) || 0);
-              }
-            }
-          }
-        }
-        pageToken = (data.data && data.data.next_page_token) || '';
-        pages++;
-        if (!pageToken) break;
-      }
-      const settledRounded = {};
-      for (const k of Object.keys(settledSums).sort()) settledRounded[k] = r2(settledSums[k]);
-      const liquido = r2((settledSums['actual_creator_total_earnings_after_tax'] || 0) - (settledSums['actual_total_agency_commission'] || 0));
-      return res.status(200).json({
-        debug: 'verify', creator, window: { ge, lt }, pages, pedidos: n, status: st,
-        estimada_pendentes: r2(estPending), preco: r2(price),
-        ALVO_valor_final_recebido: 13395.36,
-        recebida_liquida_calculada: liquido, // = earnings_after_tax − agency_commission
-        somas_dos_LIQUIDADOS: settledRounded
-      });
-    }
-
-    // DEBUG: dump da resposta crua de category_assets (mercados + ids)
-    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample' && req.query.debug !== 'verify' && req.query.debug !== 'tz') {
-      const path = '/authorization/202405/category_assets';
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
-      q.sign = signRequest(path, q, '', process.env.TIKTOK_APP_SECRET);
-      const qs = Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-      const caj = await (await fetch(`${API_HOST}${path}?${qs}`, {
-        headers: { 'content-type': 'application/json', 'x-tts-access-token': accessToken }
-      })).json();
-      return res.status(200).json({ debug: true, scopes: part.scopes, stored_cipher: part.category_asset_cipher, category_assets: caj });
-    }
-
-    // DEBUG=sample: mostra 1-2 pedidos CRUS do CAP (Creator Management) pra ver a estrutura real
-    if (req.query.debug === 'sample') {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 3));
-      const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
-      const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
-      const data = await signedPost(CAP_ORDER_PATH,
-        { category_asset_cipher: part.category_asset_cipher, page_size: '2' },
-        { create_time_ge: ge, create_time_lt: lt }, accessToken);
-      const d = data && data.data;
-      const firstOrder = d && Array.isArray(d.orders) ? d.orders[0] : null;
-      return res.status(200).json({
-        debug: 'sample',
-        code: data && data.code, message: data && data.message,
-        data_keys: d ? Object.keys(d) : null,
-        total_count: d && d.total_count,
-        orders_len: d && Array.isArray(d.orders) ? d.orders.length : null,
-        first_order_keys: firstOrder ? Object.keys(firstOrder) : null,
-        first_order: firstOrder,
-        raw_data_preview: d
-      });
-    }
-
-    // DEBUG=probe: testa CAP e TAP em cada categoria e conta os pedidos (sem importar)
-    if (req.query.debug === 'probe') {
-      const nowSec = Math.floor(Date.now() / 1000);
-      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 60));
-      const ge = nowSec - days * 86400, lt = nowSec;
-      const assets = (await getCategoryAssets(accessToken))
-        .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
-      const nm = a => (a.category && a.category.name) || '';
-      const out = [];
-      for (const ep of [{ path: CAP_ORDER_PATH, tag: 'cap' }, { path: TAP_ORDER_PATH, tag: 'tap' }]) {
-        for (const a of assets) {
-          const probe = await signedPost(ep.path,
-            { category_asset_cipher: a.cipher, page_size: '1' },
-            { create_time_ge: ge, create_time_lt: lt }, accessToken);
-          const ok = !probe.code || probe.code === 0;
-          out.push({ endpoint: ep.tag, category: nm(a), code: probe.code,
-            count: ok && probe.data ? (probe.data.total_count ?? (probe.data.orders || []).length) : null,
-            message: ok ? undefined : probe.message });
-        }
-      }
-      // resumo: só o que tem pedido
-      const comPedidos = out.filter(r => r.count > 0);
-      return res.status(200).json({ debug: 'probe', window: { ge, lt, days }, comPedidos, todas: out });
     }
 
     // 3) agência BRX + upload bucket + resolvedor de conta por creator
