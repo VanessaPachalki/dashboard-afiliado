@@ -42,18 +42,23 @@
     automaticamente — com comissão, impostos e o creator de cada venda. Os creators não precisam conectar nada.
   </p>
   <div id="ttPartnerStatus" class="msg" style="margin-bottom:12px;"></div>
-  <div class="add-row" style="gap:10px;flex-wrap:wrap;">
+  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;">
     <button class="btn-sm" id="ttConnectBtn" onclick="connectTiktokPartner()">Conectar TikTok (Partner)</button>
-    <button class="btn-sm" id="ttSyncBtn" onclick="syncTiktokPartner()">Sincronizar pedidos</button>
-    <select id="ttSyncDays" class="btn-sm" style="max-width:180px;">
-      <option value="1" selected>Último 1 dia (teste)</option>
-      <option value="3">Últimos 3 dias</option>
-      <option value="7">Últimos 7 dias</option>
-      <option value="30">Últimos 30 dias</option>
-      <option value="60">Últimos 60 dias</option>
-      <option value="90">Últimos 90 dias</option>
-    </select>
   </div>
+  <div class="add-row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
+      De (dia)
+      <input type="date" id="ttSyncFrom" class="btn-sm" style="max-width:170px;">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);">
+      Até (dia)
+      <input type="date" id="ttSyncTo" class="btn-sm" style="max-width:170px;">
+    </label>
+    <button class="btn-sm" id="ttSyncBtn" onclick="syncTiktokPartner()">Sincronizar pedidos</button>
+  </div>
+  <p style="color:var(--muted);margin:8px 0 0;font-size:12px;">
+    Importe um dia por vez (ou um período curto). Deixe as datas em branco para o último 1 dia.
+  </p>
   <div class="msg" id="ttSyncMsg" style="margin-top:10px;"></div>
 </div>
 
@@ -121,13 +126,24 @@ async function loadTiktokPartner() {
 async function syncTiktokPartner() {
   const msg = document.getElementById('ttSyncMsg');
   const btn = document.getElementById('ttSyncBtn');
-  const days = document.getElementById('ttSyncDays')?.value || '60';
+  const from = document.getElementById('ttSyncFrom')?.value; // "YYYY-MM-DD"
+  const to = document.getElementById('ttSyncTo')?.value;
   const uid = await myUid();
   if (!uid) return;
+  // range em horário de Brasília (UTC-3). Sem datas => último 1 dia.
+  let qs = `owner=${encodeURIComponent(uid)}`;
+  if (from) {
+    const ge = Math.floor(new Date(from + 'T00:00:00-03:00').getTime() / 1000);
+    const endDay = to || from;
+    const lt = Math.floor(new Date(endDay + 'T00:00:00-03:00').getTime() / 1000) + 86400; // fim do dia "até"
+    qs += `&ge=${ge}&lt=${lt}`;
+  } else {
+    qs += '&days=1';
+  }
   if (btn) btn.disabled = true;
   if (msg) { msg.className = 'msg'; msg.textContent = 'Sincronizando com a TikTok... (pode levar alguns segundos)'; }
   try {
-    const r = await fetch(`/api/tiktok/partner-sync?owner=${encodeURIComponent(uid)}&days=${encodeURIComponent(days)}`);
+    const r = await fetch(`/api/tiktok/partner-sync?${qs}`);
     const j = await r.json();
     if (msg) {
       if (j.ok) {
