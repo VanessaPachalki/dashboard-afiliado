@@ -17,8 +17,9 @@
 <div class="container" style="max-width:800px;">
 
 <div class="callout">
-  Faça upload das planilhas exportadas do TikTok Shop (<strong>affiliate_orders_*.xlsx</strong>).<br>
-  O sistema processa tudo automaticamente e os dados aparecem no seu dashboard.
+  Upload manual das planilhas exportadas do TikTok Shop (<strong>affiliate_orders_*.xlsx</strong>).<br>
+  O sistema processa tudo e os dados entram no Fechamento. Para importação automática, use
+  <a href="sincronizar.html" style="color:var(--orange);">Sincronização</a>.
 </div>
 
 <!-- Account selector -->
@@ -41,19 +42,6 @@
 </div>
 
 <div class="msg" id="uploadMsg" style="text-align:center;margin-top:12px;min-height:20px;"></div>
-
-<!-- Conectar TikTok (importar automático) -->
-<div class="card" style="margin-top:24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-  <div style="flex:1;min-width:220px;">
-    <strong style="font-size:15px;">Importar automático da TikTok</strong>
-    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Conecte sua conta e os dados do fechamento entram sozinhos — sem planilha.</div>
-    <div class="msg" id="tiktokMsg" style="margin-top:8px;min-height:0;"></div>
-  </div>
-  <div style="display:flex;gap:8px;">
-    <button class="btn-sm" onclick="connectTiktok()">Conectar TikTok</button>
-    <button class="btn-sm" onclick="sincronizarTiktok()" style="background:transparent;color:var(--orange);border:1px solid var(--orange);">Sincronizar</button>
-  </div>
-</div>
 
 <!-- Upload list -->
 <div class="section" style="margin-top:32px;">

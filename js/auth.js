@@ -107,7 +107,6 @@ async function renderNav(activePage) {
       <div class="nav-group-title">Operação</div>
       ${link('fechamento.html', 'Fechamento', 'fechamento')}
       ${link('historico.html', 'Histórico', 'historico')}
-      ${link('upload.html', 'Upload', 'upload')}
     </div>`;
 
   // GESTÃO — só matriz
@@ -133,7 +132,7 @@ async function renderNav(activePage) {
   // prefetch das páginas do menu -> navegação instantânea
   if (!window._navPrefetched) {
     window._navPrefetched = true;
-    const pages = ['fechamento.html', 'historico.html', 'upload.html'];
+    const pages = ['fechamento.html', 'historico.html'];
     if (isMatriz) pages.push('admin.html', 'conta.html', 'sincronizar.html', 'settings.html');
     pages.forEach(h => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = h; document.head.appendChild(l); });
   }
