@@ -27,9 +27,13 @@ function signRequest(path, query, bodyStr, appSecret) {
   return crypto.createHmac('sha256', appSecret).update(base, 'utf8').digest('hex');
 }
 
+// credenciais do APP DE SELLER (separado do afiliado); cai no afiliado se não setado
+const SELLER_KEY = process.env.TIKTOK_SELLER_APP_KEY || process.env.TIKTOK_APP_KEY;
+const SELLER_SECRET = process.env.TIKTOK_SELLER_APP_SECRET || process.env.TIKTOK_APP_SECRET;
+
 async function signedPost(path, extraQuery, body, accessToken) {
-  const appKey = process.env.TIKTOK_APP_KEY;
-  const appSecret = process.env.TIKTOK_APP_SECRET;
+  const appKey = SELLER_KEY;
+  const appSecret = SELLER_SECRET;
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const query = { app_key: appKey, timestamp, ...extraQuery };
   const bodyStr = body ? JSON.stringify(body) : '';
@@ -66,8 +70,8 @@ async function authedMatriz(req) {
 }
 
 async function refreshSellerToken(shop) {
-  const appKey = process.env.TIKTOK_APP_KEY;
-  const appSecret = process.env.TIKTOK_APP_SECRET;
+  const appKey = SELLER_KEY;
+  const appSecret = SELLER_SECRET;
   if (!shop.refresh_token) return null;
   const url = `${TOKEN_HOST}/api/v2/token/refresh`
     + `?app_key=${encodeURIComponent(appKey)}&app_secret=${encodeURIComponent(appSecret)}`

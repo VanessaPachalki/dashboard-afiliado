@@ -1,0 +1,104 @@
+// ================================================
+// Vercel Function — OAuth callback do APP DE SELLER (separado do afiliado)
+// Redirect URL: https://app.creatorfy.shop/api/tiktok/seller-callback
+//
+// O seller (dono da loja) autoriza o app de Seller. Aqui:
+//   troca auth_code -> token (com as chaves do APP DE SELLER)
+//   -> GET /authorization/202309/shops (shop_cipher por loja)
+//   -> upsert tiktok_sellers
+//
+// Env vars: TIKTOK_SELLER_APP_KEY, TIKTOK_SELLER_APP_SECRET,
+//           SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APP_URL
+// ================================================
+
+import crypto from 'crypto';
+
+const TOKEN_URL = 'https://auth.tiktok-shops.com/api/v2/token/get';
+const API_HOST = 'https://open-api.tiktokglobalshop.com';
+
+function signRequest(path, query, bodyStr, appSecret) {
+  const keys = Object.keys(query).filter(k => k !== 'sign' && k !== 'access_token').sort();
+  let base = appSecret + path;
+  for (const k of keys) base += k + query[k];
+  if (bodyStr) base += bodyStr;
+  base += appSecret;
+  return crypto.createHmac('sha256', appSecret).update(base, 'utf8').digest('hex');
+}
+
+async function exchangeToken(code, appKey, appSecret) {
+  const url = `${TOKEN_URL}?app_key=${encodeURIComponent(appKey)}`
+    + `&app_secret=${encodeURIComponent(appSecret)}`
+    + `&auth_code=${encodeURIComponent(code)}&grant_type=authorized_code`;
+  const j = await (await fetch(url)).json();
+  if (j && j.code !== 0) console.error('seller token/get code:', j.code, j.message);
+  return j && j.data;
+}
+
+function sbUpsert(table, conflict, row) {
+  const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflict}`, {
+    method: 'POST',
+    headers: {
+      apikey: KEY, Authorization: `Bearer ${KEY}`,
+      'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify(row)
+  });
+}
+
+const isoIn = secs => secs ? new Date(Date.now() + secs * 1000).toISOString() : null;
+
+export default async function handler(req, res) {
+  const APP_URL = process.env.APP_URL || '';
+  const { code, error } = req.query;
+  const back = (status) => res.redirect(302, `${APP_URL}/conta.html?tiktok=${status}`);
+  const appKey = process.env.TIKTOK_SELLER_APP_KEY;
+  const appSecret = process.env.TIKTOK_SELLER_APP_SECRET;
+
+  try {
+    if (error || !code) return back('denied');
+    if (!appKey || !appSecret || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
+      return back('seller_misconfig');
+
+    const d = await exchangeToken(code, appKey, appSecret);
+    if (!d || !d.access_token) return back('error');
+    console.log('seller granted_scopes:', d.granted_scopes, 'user_type:', d.user_type);
+
+    // GET /authorization/202309/shops (assinado com a chave do app de seller)
+    const path = '/authorization/202309/shops';
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const query = { app_key: appKey, timestamp };
+    query.sign = signRequest(path, query, '', appSecret);
+    const qs = Object.entries(query).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+    const j = await (await fetch(`${API_HOST}${path}?${qs}`, {
+      headers: { 'content-type': 'application/json', 'x-tts-access-token': d.access_token }
+    })).json();
+    if (j && j.code !== 0) console.error('get shops code:', j.code, j.message);
+    const shops = (j && j.data && j.data.shops) || [];
+    if (!shops.length) { console.error('seller sem shops:', JSON.stringify(j)); return back('no_shops'); }
+
+    // agência BRX pra pendurar as lojas
+    const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const agRows = await (await fetch(`${process.env.SUPABASE_URL}/rest/v1/agencies?slug=eq.brx&select=id&limit=1`, {
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}` }
+    })).json();
+    const agencyId = Array.isArray(agRows) && agRows[0] ? agRows[0].id : null;
+    const scopes = Array.isArray(d.granted_scopes) ? d.granted_scopes.join(',') : (d.granted_scopes || null);
+
+    for (const s of shops) {
+      const up = await sbUpsert('tiktok_sellers', 'shop_id', {
+        shop_id: String(s.id), shop_cipher: s.cipher, shop_name: s.name || null,
+        region: s.region || null, seller_type: s.seller_type || null,
+        access_token: d.access_token, refresh_token: d.refresh_token || null,
+        access_expire_at: isoIn(d.access_token_expire_in),
+        refresh_expire_at: isoIn(d.refresh_token_expire_in),
+        scopes, agency_id: agencyId, updated_at: new Date().toISOString()
+      });
+      if (!up.ok) { console.error('upsert tiktok_sellers falhou:', up.status, await up.text()); return back('error'); }
+    }
+    return back('seller_connected');
+  } catch (e) {
+    console.error('seller-callback erro:', e);
+    return back('error');
+  }
+}
