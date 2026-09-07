@@ -81,8 +81,8 @@ function mapCapOrderToRows(order, matrizUid, uploadId) {
 
 const TOKEN_HOST = 'https://auth.tiktok-shops.com';
 const API_HOST = 'https://open-api.tiktokglobalshop.com';
-const CAP_ORDER_PATH = '/affiliate_partner/202504/cap_order/search';   // precisa "Read CAP earnings order"
-const TAP_ORDER_PATH = '/affiliate_partner/202411/orders/search';      // fallback (usa escopo de campanha TAP)
+const CAP_ORDER_PATH = '/affiliate_partner/202603/cap_order/search';   // scope: partner.cap_orders.read
+const TAP_ORDER_PATH = '/affiliate_partner/202603/orders/search';      // scope: partner.tap_campaign.read
 
 // HMAC-SHA256: base = app_secret + path + {sortedKey}{value}... (+ body cru) + app_secret
 function signRequest(path, queryParams, bodyStr, appSecret) {
