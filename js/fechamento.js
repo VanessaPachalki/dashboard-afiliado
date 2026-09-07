@@ -1406,14 +1406,19 @@ function escalaRechain() {
   });
 }
 
-// guarda o ilógico: fim <= início, ou turno passando do fim da live
+// resolve o fim sem nunca apagar: se a hora ficou <= o início (madrugada numa
+// live que vira o dia), rola a DATA +1 dia sozinho; clampa no fim da live.
 function escalaFimChange(input) {
   const tr = input.closest('tr');
   const ini = tr.querySelector('.es-ini').value;
-  const fim = input.value;
-  if (fim && ini) {
-    if (fim <= ini) { toast('err', 'O fim do turno deve ser depois do início.'); input.value = ''; }
-    else if (escalaState.liveFim && fim > escalaState.liveFim) { toast('warn', 'O turno passaria do fim da live. Ajustei pro fim da live.'); input.value = escalaState.liveFim; }
+  let fim = input.value;
+  if (fim && ini && fim <= ini) {
+    const rolled = addMin(fim, 1440); // +1 dia
+    if (rolled > ini) { fim = rolled; input.value = fim; }
+  }
+  if (fim && escalaState.liveFim && fim > escalaState.liveFim) {
+    toast('warn', 'O turno passa do fim da live. Ajustei pro fim da live.');
+    fim = escalaState.liveFim; input.value = fim;
   }
   escalaRechain();
 }
@@ -1455,7 +1460,7 @@ function escalaCheckLive() {
     else if (cov > 1) over++;
   });
   let html = warns.map(w => sbBanner('err', '⚠', w)).join('');
-  if (gap > 0) html += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno. ${fmtBRL(gapReceb)} sem responsável.`);
+  if (gap > 0) html += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno (sem responsável).`);
   if (over > 0) html += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (contados 2x).`);
   if (!html && rows.length) html = sbBanner('ok', '✓', 'Tudo certo. Todos os pedidos cobertos.');
   el.innerHTML = html;
@@ -1500,7 +1505,7 @@ function renderEscalaResults() {
     else if (cov > 1) over++;
   });
   let warn = '';
-  if (gap > 0) warn += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno. ${fmtBRL(gapReceb)} sem responsável.`);
+  if (gap > 0) warn += sbBanner('warn', '◔', `${gap.toLocaleString('pt-BR')} pedido(s) fora de qualquer turno (sem responsável).`);
   if (over > 0) warn += sbBanner('err', '⚠', `${over.toLocaleString('pt-BR')} pedido(s) em mais de um turno (comissão contada 2x).`);
   if (!warn) warn = sbBanner('ok', '✓', 'Cobertura completa, sem sobreposição.');
   if (el2) el2.innerHTML = warn;
