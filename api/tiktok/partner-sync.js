@@ -129,6 +129,20 @@ async function sb(path, opts = {}) {
   });
 }
 
+// autentica o chamador: precisa de um JWT válido de um MATRIZ (superadmin)
+async function authedMatriz(req) {
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { Authorization: `Bearer ${token}`, apikey: process.env.SUPABASE_SERVICE_ROLE_KEY }
+  });
+  if (!r.ok) return null;
+  const u = await r.json();
+  if (!u || !u.email) return null;
+  const sa = await (await sb(`superadmins?email=eq.${encodeURIComponent(u.email)}&select=email`)).json();
+  return (Array.isArray(sa) && sa.length) ? u : null;
+}
+
 // refresh do access_token do partner (linha id=1)
 async function refreshPartnerToken(part) {
   const appKey = process.env.TIKTOK_APP_KEY;
@@ -227,8 +241,9 @@ function makeAccountResolver(matrizUid, agencyId) {
 
 export default async function handler(req, res) {
   try {
-    const matrizUid = req.query.owner;
-    if (!matrizUid) return res.status(400).json({ error: 'owner (matriz) obrigatório' });
+    const matriz = await authedMatriz(req);
+    if (!matriz) return res.status(401).json({ error: 'não autorizado' });
+    const matrizUid = matriz.id; // dono dos pedidos = usuário autenticado (não confia no query)
 
     // 1) conexão partner (token + cipher)
     const parts = await (await sb('tiktok_partner?id=eq.1&select=*')).json();

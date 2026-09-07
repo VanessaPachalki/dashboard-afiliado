@@ -103,6 +103,8 @@ async function syncTiktokPartner() {
     const now = Math.floor(Date.now() / 1000);
     ge = now - 86400; lt = now;
   }
+  const { data: { session } } = await sb.auth.getSession();
+  const authHeaders = session ? { Authorization: `Bearer ${session.access_token}` } : {};
   const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
 
   if (btn) btn.disabled = true;
@@ -115,7 +117,7 @@ async function syncTiktokPartner() {
     while (batches < 1000) {
       let url = `/api/tiktok/partner-sync?${base}`;
       if (pageToken) url += `&page_token=${encodeURIComponent(pageToken)}&cipher=${encodeURIComponent(cipher)}&endpoint=${encodeURIComponent(endpoint)}`;
-      const j = await (await fetch(url)).json();
+      const j = await (await fetch(url, { headers: authHeaders })).json();
       if (!j.ok) { setMsg('msg-err', 'Erro: ' + (j.message || j.error || 'desconhecido') + (j.code ? ` [${j.code}]` : '')); return; }
       grand += j.imported || 0;
       cipher = j.cipher || cipher;

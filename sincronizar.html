@@ -145,6 +145,8 @@ async function importDays() {
     const ed = to || from;
     lt = Math.floor(new Date(ed + 'T00:00:00-03:00').getTime() / 1000) + 86400;
   } else { const now = Math.floor(Date.now() / 1000); ge = now - 86400; lt = now; }
+  const { data: { session } } = await sb.auth.getSession();
+  const authHeaders = session ? { Authorization: `Bearer ${session.access_token}` } : {};
   const base = `owner=${encodeURIComponent(uid)}&ge=${ge}&lt=${lt}&max_pages=20`;
   if (btn) btn.disabled = true;
   const set = (c, t) => { if (msg) { msg.className = 'msg ' + c; msg.textContent = t; } };
@@ -154,7 +156,7 @@ async function importDays() {
     while (b < 1000) {
       let url = `/api/tiktok/partner-sync?${base}`;
       if (pt) url += `&page_token=${encodeURIComponent(pt)}&cipher=${encodeURIComponent(ci)}&endpoint=${encodeURIComponent(ep)}`;
-      const j = await (await fetch(url)).json();
+      const j = await (await fetch(url, { headers: authHeaders })).json();
       if (!j.ok) { set('msg-err', 'Erro: ' + (j.message || j.error || '') + (j.code ? ` [${j.code}]` : '')); return; }
       grand += j.imported || 0; ci = j.cipher || ci; ep = j.endpoint || ep;
       if (j.total_disponivel != null) td = j.total_disponivel; b++;

@@ -91,10 +91,23 @@ async function refreshToken(conn) {
   return d.access_token;
 }
 
+// autentica: precisa de um JWT válido; o dono = o próprio usuário
+async function authedUser(req) {
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { Authorization: `Bearer ${token}`, apikey: process.env.SUPABASE_SERVICE_ROLE_KEY }
+  });
+  if (!r.ok) return null;
+  const u = await r.json();
+  return (u && u.id) ? u : null;
+}
+
 export default async function handler(req, res) {
   try {
-    const ownerId = req.query.owner;
-    if (!ownerId) return res.status(400).json({ error: 'owner obrigatório' });
+    const user = await authedUser(req);
+    if (!user) return res.status(401).json({ error: 'não autorizado' });
+    const ownerId = user.id;
 
     // 1) pega a conexão (token) do creator
     const connResp = await sb(`tiktok_connections?owner_id=eq.${ownerId}&select=*`);
