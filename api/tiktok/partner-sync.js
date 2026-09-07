@@ -79,9 +79,10 @@ function mapSkuOrder(so, matrizUid, uploadId) {
     items_refunded: refunded,
     // estimada = comissão padrão estimada (bruta, igual col "Comissão padrão estimada")
     estimated_commission: _amt(so.estimated_standard_commission),
-    // recebida = valor final recebido pelo creator, com FEE DA AGÊNCIA e imposto
-    // já descontados (igual col "Valor total final recebido" do xlsx)
-    received_commission: _amt(so.actual_creator_total_earnings_after_tax)
+    // recebida LÍQUIDA = ganho do creator − comissão da agência (fee descontado),
+    // = coluna "Valor total final recebido" do xlsx. Validado com a Malu 13/08.
+    received_commission: Math.max(0,
+      _amt(so.actual_creator_total_earnings_after_tax) - _amt(so.actual_total_agency_commission))
   };
 }
 
@@ -281,10 +282,12 @@ export default async function handler(req, res) {
       }
       const settledRounded = {};
       for (const k of Object.keys(settledSums).sort()) settledRounded[k] = r2(settledSums[k]);
+      const liquido = r2((settledSums['actual_creator_total_earnings_after_tax'] || 0) - (settledSums['actual_total_agency_commission'] || 0));
       return res.status(200).json({
         debug: 'verify', creator, window: { ge, lt }, pages, pedidos: n, status: st,
         estimada_pendentes: r2(estPending), preco: r2(price),
         ALVO_valor_final_recebido: 13395.36,
+        recebida_liquida_calculada: liquido, // = earnings_after_tax − agency_commission
         somas_dos_LIQUIDADOS: settledRounded
       });
     }
