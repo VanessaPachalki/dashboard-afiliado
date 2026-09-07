@@ -242,8 +242,51 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
+    // DEBUG=verify: puxa a API e agrega UM creator (compara com o xlsx). Não grava nada.
+    if (req.query.debug === 'verify') {
+      const creator = String(req.query.creator || '').toLowerCase();
+      const nowSec = Math.floor(Date.now() / 1000);
+      const days = Math.max(1, Math.min(90, parseInt(req.query.days, 10) || 3));
+      const ge = req.query.ge ? parseInt(req.query.ge, 10) : nowSec - days * 86400;
+      const lt = req.query.lt ? parseInt(req.query.lt, 10) : nowSec;
+      const cipher = part.category_asset_cipher;
+      const amt = o => (o && o.amount != null ? (Number(o.amount) || 0) : 0);
+      const r2 = x => Math.round(x * 100) / 100;
+      let pageToken = '', pages = 0, n = 0;
+      const st = {}; let est = 0, gross = 0, net = 0, netSettled = 0, estPending = 0, price = 0;
+      while (pages < 300) {
+        const q = { category_asset_cipher: cipher, page_size: '100', ...(pageToken ? { page_token: pageToken } : {}) };
+        const data = await signedPost(CAP_ORDER_PATH, q, { create_time_ge: ge, create_time_lt: lt }, accessToken);
+        if (data.code && data.code !== 0) return res.status(502).json({ error: 'api', code: data.code, message: data.message });
+        const list = (data.data && data.data.sku_orders) || [];
+        for (const so of list) {
+          if (creator && String(so.creator_username || '').toLowerCase() !== creator) continue;
+          n++;
+          const s = String(so.settle_status || '').toUpperCase();
+          st[s] = (st[s] || 0) + 1;
+          est += amt(so.estimated_standard_commission);
+          gross += amt(so.actual_standard_commission);
+          net += amt(so.actual_creator_total_earnings_after_tax);
+          price += amt(so.price);
+          if (s.includes('SETTLED')) netSettled += amt(so.actual_creator_total_earnings_after_tax);
+          if (s.includes('PENDING')) estPending += amt(so.estimated_standard_commission);
+        }
+        pageToken = (data.data && data.data.next_page_token) || '';
+        pages++;
+        if (!pageToken) break;
+      }
+      return res.status(200).json({
+        debug: 'verify', creator, window: { ge, lt }, pages, pedidos: n, status: st,
+        soma: {
+          estimada_padrao: r2(est), recebida_bruta: r2(gross),
+          recebida_liquida: r2(net), recebida_liquida_liquidados: r2(netSettled),
+          estimada_pendentes: r2(estPending), preco: r2(price)
+        }
+      });
+    }
+
     // DEBUG: dump da resposta crua de category_assets (mercados + ids)
-    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample') {
+    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample' && req.query.debug !== 'verify') {
       const path = '/authorization/202405/category_assets';
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
