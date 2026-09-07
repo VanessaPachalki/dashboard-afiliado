@@ -223,6 +223,19 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
+    // DEBUG: dump da resposta crua de category_assets (mercados + ids) pra achar o main_account_id
+    if (req.query.debug) {
+      const path = '/authorization/202405/category_assets';
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
+      q.sign = signRequest(path, q, '', process.env.TIKTOK_APP_SECRET);
+      const qs = Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+      const caj = await (await fetch(`${API_HOST}${path}?${qs}`, {
+        headers: { 'content-type': 'application/json', 'x-tts-access-token': accessToken }
+      })).json();
+      return res.status(200).json({ debug: true, scopes: part.scopes, stored_cipher: part.category_asset_cipher, category_assets: caj });
+    }
+
     // 3) agência BRX + upload bucket + resolvedor de conta por creator
     const agencyId = await getAgencyId();
     if (!agencyId) return res.status(500).json({ error: 'agência BRX não encontrada' });
