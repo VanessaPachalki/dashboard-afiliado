@@ -100,6 +100,7 @@ async function renderNav(activePage) {
     <div class="nav-group">
       <div class="nav-group-title">Operação</div>
       ${link('fechamento.html', 'Fechamento', 'fechamento')}
+      ${link('historico.html', 'Histórico', 'historico')}
       ${link('dashboard.html', 'Dashboard', 'dashboard')}
       ${link('upload.html', 'Upload', 'upload')}
     </div>`;

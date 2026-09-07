@@ -1165,6 +1165,35 @@ function wizardGo(n) {
 
 async function initFechamentoJornada() {
   wizardGo(1);
+  // abre uma live salva (vindo do Histórico): ?live=<id>
+  const liveId = new URLSearchParams(location.search).get('live');
+  if (liveId) await abrirLiveSalva(liveId);
+}
+
+async function abrirLiveSalva(id) {
+  const { data } = await sb.from('lives').select('*, accounts(name)').eq('id', id).maybeSingle();
+  if (!data) { toast('err', 'Fechamento não encontrado.'); return; }
+  document.getElementById('fechAccountSearch').value = data.accounts?.name || '';
+  document.getElementById('fechAccount').value = data.account_id;
+  document.getElementById('liveIni').value = data.start_dt;
+  document.getElementById('liveFim').value = data.end_dt;
+  await escalaCarregarPeriodo();
+  const pctEl = document.getElementById('escalaPct'); if (pctEl) pctEl.value = data.pct != null ? data.pct : 100;
+  const tb = document.getElementById('escalaRows');
+  const turnos = Array.isArray(data.turnos) ? data.turnos : [];
+  if (tb && turnos.length) {
+    tb.innerHTML = '';
+    turnos.forEach(t => {
+      escalaAddRow(t.ini, t.fim);
+      const last = tb.querySelector('tr:last-child');
+      if (last) {
+        last.querySelector('.es-nome').value = t.nome || '';
+        last.querySelector('.es-qtd').value = t.qtd || 1;
+      }
+    });
+    escalaCheckLive();
+  }
+  toast('ok', `"${data.name}" carregada. Ajuste e recalcule se quiser.`);
 }
 
 // ---- Passo 1: frescor dos dias ----

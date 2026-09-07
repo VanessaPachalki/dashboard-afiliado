@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Histórico</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Histórico</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:1000px;">
+
+<div class="admin-section">
+  <h2>Histórico de fechamentos</h2>
+  <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">Lives salvas. Abra para editar ou gerar relatórios.</p>
+  <div class="add-row" style="align-items:flex-end;gap:10px;margin-bottom:14px;">
+    <input type="text" id="histBusca" placeholder="Buscar por nome ou host" oninput="renderHist()"
+      style="flex:1;max-width:320px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+  </div>
+  <div id="histList"></div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script>
+let HIST = [];
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+  await renderNav('historico');
+  await loadHist();
+})();
+
+async function loadHist() {
+  const { data, error } = await sb.from('lives').select('*, accounts(name)').order('start_dt', { ascending: false });
+  HIST = error ? [] : (data || []);
+  renderHist();
+}
+
+function fmtDT(s) {
+  if (!s) return '';
+  const [date, time] = String(s).split('T');
+  const [, m, d] = date.split('-');
+  return `${d}/${m} ${time || ''}`.trim();
+}
+
+function renderHist() {
+  const el = document.getElementById('histList');
+  const q = (document.getElementById('histBusca').value || '').toLowerCase().trim();
+  let list = HIST;
+  if (q) list = list.filter(l => (l.name || '').toLowerCase().includes(q) || (l.accounts?.name || '').toLowerCase().includes(q));
+  if (!list.length) { el.innerHTML = '<div class="msg">Nenhum fechamento salvo.</div>'; return; }
+  const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  el.innerHTML = list.map(l => {
+    const turnos = Array.isArray(l.turnos) ? l.turnos : [];
+    const total = turnos.reduce((s, t) => s + (Number(t.pagar) || 0), 0);
+    return `<div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <div style="font-weight:800;font-size:15px;">${esc(l.name)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">${esc(l.accounts?.name || '')} · ${fmtDT(l.start_dt)} a ${fmtDT(l.end_dt)} · ${turnos.length} turno(s)</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;color:var(--muted);">Total a pagar</div>
+        <div style="font-weight:800;color:var(--orange);font-size:16px;">${fmtBRL(total)}</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-primary" onclick="window.location.href='fechamento.html?live=${l.id}'">Abrir</button>
+        <button class="del" onclick="excluirLive('${l.id}','${escAttr(l.name)}')">Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function excluirLive(id, name) {
+  if (!confirm(`Excluir o fechamento "${name}"?`)) return;
+  const { error } = await sb.from('lives').delete().eq('id', id);
+  if (error) { toast('err', 'Erro ao excluir: ' + error.message); return; }
+  toast('ok', 'Fechamento excluído.');
+  HIST = HIST.filter(l => l.id !== id);
+  renderHist();
+}
+</script>
+</body>
+</html>
