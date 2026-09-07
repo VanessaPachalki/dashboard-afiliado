@@ -393,6 +393,45 @@ const GRAN_CARDS = [
   ['analise', 'Em análise (fraude)', 'var(--muted)'],
   ['aguardando', 'Aguardando pgto.', 'var(--muted)']
 ];
+const GRAN_LABEL = {
+  liquidado: 'Liquidado', pendente: 'Pendente', naopago: 'Não pago',
+  cancelado: 'Cancelado', devolucao: 'Devolução', analise: 'Em análise', aguardando: 'Aguardando'
+};
+
+// Lista de pedidos do turno atual (pra tabela de detalhes + busca)
+let lastTurnoOrders = [];
+
+function renderOrdersDetail() {
+  const el = document.getElementById('ordersDetail');
+  if (!el) return;
+  const q = (document.getElementById('ordersDetailSearch')?.value || '').toLowerCase().trim();
+  let list = lastTurnoOrders;
+  if (q) list = list.filter(o =>
+    (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q));
+  const fmtBRL = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const body = list.map(o => {
+    const k = granularStatus(o);
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="white-space:nowrap;padding:4px 8px;">${fmtDT(orderDT(o))}</td>
+      <td style="padding:4px 8px;">${esc((o.product_name || '').slice(0, 42))}</td>
+      <td style="padding:4px 8px;color:var(--muted);">${esc(o.store_name || '')}</td>
+      <td style="padding:4px 8px;">${GRAN_LABEL[k] || k}</td>
+      <td class="r" style="padding:4px 8px;">${fmtBRL(o.estimated_commission)}</td>
+      <td class="r" style="padding:4px 8px;color:var(--green);">${fmtBRL(o.received_commission)}</td>
+      <td class="r" style="padding:4px 8px;">${fmtBRL(o.gmv)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse;">
+    <thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border);">
+      <th style="padding:4px 8px;">Data/Hora</th><th style="padding:4px 8px;">Produto</th>
+      <th style="padding:4px 8px;">Loja</th><th style="padding:4px 8px;">Status</th>
+      <th class="r" style="padding:4px 8px;">Estimada</th><th class="r" style="padding:4px 8px;">Recebida</th>
+      <th class="r" style="padding:4px 8px;">GMV</th>
+    </tr></thead>
+    <tbody>${body || '<tr><td colspan="7" style="color:var(--muted);padding:10px;text-align:center;">Nenhum pedido.</td></tr>'}</tbody>
+  </table>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px;">${list.length} pedido(s)</div>`;
+}
 
 function calcularFechamento() {
   const sellerId = document.getElementById('fechSeller').value;
@@ -633,6 +672,12 @@ function calcularFechamento() {
     },
     options: pieOpts(ctx => ` ${ctx.label}: ${fmtBRL(ctx.raw)} (${cancelouStores[ctx.dataIndex]?.[1]?.count || 0} ped.)`)
   });
+
+  // Detalhes dos pedidos do turno (com busca)
+  lastTurnoOrders = orders.slice().sort((a, b) => orderDT(a).localeCompare(orderDT(b)));
+  const ds = document.getElementById('ordersDetailSearch');
+  if (ds) ds.value = '';
+  renderOrdersDetail();
 
   // Scroll to result
   resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
