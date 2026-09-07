@@ -1,82 +1,125 @@
 // ================================================
-// Vercel Function — TikTok Shop OAuth callback (creator)
-// Redirect URL registrada na TikTok: https://app.creatorfy.shop/api/tiktok/callback
+// Vercel Function — TikTok Shop OAuth callback
+// Redirect URL: https://app.creatorfy.shop/api/tiktok/callback
 //
-// Fluxo: creator autoriza -> TikTok redireciona aqui com ?code & ?state(owner_id)
-//        -> troca o code por token -> salva no Supabase (service role) -> volta pro app.
+// Dois fluxos, distinguidos pelo `state`:
+//   - state === 'partner'  -> autorização Partner/TAP (a MATRIZ autoriza 1x):
+//        troca token -> pega category_asset_cipher -> salva em tiktok_partner
+//   - qualquer outro state -> autorização Creator (state = owner_id):
+//        troca token -> salva em tiktok_connections
 //
-// Env vars (Vercel):
-//   TIKTOK_APP_KEY, TIKTOK_APP_SECRET
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-//   APP_URL (ex: https://app.creatorfy.shop)
+// Env vars: TIKTOK_APP_KEY, TIKTOK_APP_SECRET, SUPABASE_URL,
+//           SUPABASE_SERVICE_ROLE_KEY, APP_URL
 // ================================================
+
+import crypto from 'crypto';
+
+const TOKEN_URL = 'https://auth.tiktok-shops.com/api/v2/token/get';
+const API_HOST = 'https://open-api.tiktokglobalshop.com';
+
+// HMAC-SHA256: base = app_secret + path + {sortedKey}{value}... (+ body) + app_secret
+function signRequest(path, query, bodyStr, appSecret) {
+  const keys = Object.keys(query).filter(k => k !== 'sign' && k !== 'access_token').sort();
+  let base = appSecret + path;
+  for (const k of keys) base += k + query[k];
+  if (bodyStr) base += bodyStr;
+  base += appSecret;
+  return crypto.createHmac('sha256', appSecret).update(base, 'utf8').digest('hex');
+}
+
+async function exchangeToken(code) {
+  const appKey = process.env.TIKTOK_APP_KEY;
+  const appSecret = process.env.TIKTOK_APP_SECRET;
+  const url = `${TOKEN_URL}?app_key=${encodeURIComponent(appKey)}`
+    + `&app_secret=${encodeURIComponent(appSecret)}`
+    + `&auth_code=${encodeURIComponent(code)}&grant_type=authorized_code`;
+  const j = await (await fetch(url)).json();
+  if (j && j.code !== 0) console.error('token/get code:', j.code, j.message);
+  return j && j.data;
+}
+
+function sbUpsert(table, conflict, row) {
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${conflict}`, {
+    method: 'POST',
+    headers: {
+      apikey: KEY, Authorization: `Bearer ${KEY}`,
+      'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify(row)
+  });
+}
+
+const isoIn = secs => secs ? new Date(Date.now() + secs * 1000).toISOString() : null;
+
+// ---- Partner (TAP): pega o category_asset_cipher e salva a conexão da matriz ----
+async function handlePartner(d, back) {
+  const appKey = process.env.TIKTOK_APP_KEY;
+  const appSecret = process.env.TIKTOK_APP_SECRET;
+
+  // GET /authorization/202405/category_assets (assinado)
+  const path = '/authorization/202405/category_assets';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const query = { app_key: appKey, timestamp };
+  query.sign = signRequest(path, query, '', appSecret);
+  const qs = Object.entries(query).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  const caj = await (await fetch(`${API_HOST}${path}?${qs}`, {
+    headers: { 'content-type': 'application/json', 'x-tts-access-token': d.access_token }
+  })).json();
+  if (caj && caj.code !== 0) console.error('category_assets code:', caj.code, caj.message);
+  const assets = caj && caj.data && caj.data.category_assets;
+  const cipher = Array.isArray(assets) && assets[0] ? assets[0].cipher : null;
+  if (!cipher) { console.error('sem category_asset_cipher:', JSON.stringify(caj)); return back('no_cipher'); }
+
+  const up = await sbUpsert('tiktok_partner', 'id', {
+    id: 1,
+    access_token: d.access_token,
+    refresh_token: d.refresh_token || null,
+    access_expire_at: isoIn(d.access_token_expire_in),
+    refresh_expire_at: isoIn(d.refresh_token_expire_in),
+    category_asset_cipher: cipher,
+    scopes: Array.isArray(d.granted_scopes) ? d.granted_scopes.join(',') : (d.granted_scopes || null),
+    updated_at: new Date().toISOString()
+  });
+  if (!up.ok) { console.error('upsert tiktok_partner falhou:', up.status, await up.text()); return back('error'); }
+  return back('partner_connected');
+}
 
 export default async function handler(req, res) {
   const APP_URL = process.env.APP_URL || '';
-  const back = (status) => res.redirect(302, `${APP_URL}/upload.html?tiktok=${status}`);
+  const { code, state, error } = req.query;
+  const isPartner = state === 'partner';
+  const dest = isPartner ? 'admin.html' : 'upload.html';
+  const back = (status) => res.redirect(302, `${APP_URL}/${dest}?tiktok=${status}`);
 
   try {
-    const { code, state, error } = req.query;
-    if (error || !code || !state) return back('denied');
+    if (error || !code) return back('denied');
+    if (!process.env.TIKTOK_APP_KEY || !process.env.TIKTOK_APP_SECRET
+      || !process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return back('misconfig');
 
-    const appKey = process.env.TIKTOK_APP_KEY;
-    const appSecret = process.env.TIKTOK_APP_SECRET;
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!appKey || !appSecret || !SUPABASE_URL || !SERVICE_KEY) return back('misconfig');
+    const d = await exchangeToken(code);
+    if (!d || !d.access_token) return back('error');
+    console.log('granted_scopes:', d.granted_scopes, 'user_type:', d.user_type);
 
-    // 1) troca o auth_code por tokens (grant_type = authorized_code — NÃO o padrão OAuth)
-    const tokenUrl = 'https://auth.tiktok-shops.com/api/v2/token/get'
-      + `?app_key=${encodeURIComponent(appKey)}`
-      + `&app_secret=${encodeURIComponent(appSecret)}`
-      + `&auth_code=${encodeURIComponent(code)}`
-      + '&grant_type=authorized_code';
-    const tr = await fetch(tokenUrl);
-    const tj = await tr.json();
-    if (tj && tj.code !== 0) console.error('token/get code:', tj.code, tj.message);
-    const d = tj && tj.data;
-    if (!d || !d.access_token) {
-      console.error('token/get falhou:', JSON.stringify(tj));
-      return back('error');
-    }
-    // Identidade Creator = user_type 1 (não reusar token de seller em API de creator)
-    if (d.user_type !== undefined && Number(d.user_type) !== 1) {
-      console.error('user_type inesperado (esperado 1=Creator):', d.user_type, 'scopes:', d.granted_scopes);
-      return back('wrong_identity');
-    }
-    // Log dos scopes concedidos (creator pode conceder parcial → precisa do 1021508)
-    console.log('granted_scopes:', d.granted_scopes);
+    // ===== Fluxo Partner (matriz) =====
+    if (isPartner) return await handlePartner(d, back);
 
-    const now = Date.now();
-    const iso = (secs) => secs ? new Date(now + secs * 1000).toISOString() : null;
-    const row = {
+    // ===== Fluxo Creator =====
+    if (!state) return back('denied');
+    if (d.user_type !== undefined && Number(d.user_type) !== 1) return back('wrong_identity');
+    const up = await sbUpsert('tiktok_connections', 'owner_id', {
       owner_id: state,
       open_id: d.open_id || null,
       seller_name: d.seller_name || null,
       access_token: d.access_token,
       refresh_token: d.refresh_token || null,
-      access_expire_at: iso(d.access_token_expire_in),
-      refresh_expire_at: iso(d.refresh_token_expire_in),
+      access_expire_at: isoIn(d.access_token_expire_in),
+      refresh_expire_at: isoIn(d.refresh_token_expire_in),
       scopes: Array.isArray(d.granted_scopes) ? d.granted_scopes.join(',') : (d.granted_scopes || null),
       updated_at: new Date().toISOString()
-    };
-
-    // 2) upsert no Supabase (service role bypassa RLS)
-    const up = await fetch(`${SUPABASE_URL}/rest/v1/tiktok_connections?on_conflict=owner_id`, {
-      method: 'POST',
-      headers: {
-        apikey: SERVICE_KEY,
-        Authorization: `Bearer ${SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify(row)
     });
-    if (!up.ok) {
-      console.error('supabase upsert falhou:', up.status, await up.text());
-      return back('error');
-    }
-
+    if (!up.ok) { console.error('upsert tiktok_connections falhou:', up.status, await up.text()); return back('error'); }
     return back('connected');
   } catch (e) {
     console.error('callback erro:', e);
