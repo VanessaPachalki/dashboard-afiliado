@@ -450,7 +450,9 @@ function renderOrdersDetail() {
   const el = document.getElementById('ordersDetail');
   if (!el) return;
   const q = (document.getElementById('ordersDetailSearch')?.value || '').toLowerCase().trim();
+  const respFilter = document.getElementById('ordersDetailResp')?.value || '';
   let list = lastTurnoOrders;
+  if (respFilter) list = list.filter(o => (o._resp || '') === respFilter);
   if (q) list = list.filter(o =>
     (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q) || (o._resp || '').toLowerCase().includes(q));
   // ordenação
@@ -1422,6 +1424,12 @@ function renderEscalaResults() {
   });
   ordDetailSort = { key: 'dt', dir: 'asc' };
   const ds = document.getElementById('ordersDetailSearch'); if (ds) ds.value = '';
+  const respSel = document.getElementById('ordersDetailResp');
+  if (respSel) {
+    const names = [...new Set(rows.map(r => r.nome))];
+    respSel.innerHTML = '<option value="">Todos os responsáveis</option>' +
+      names.map(n => `<option value="${escAttr(n)}">${esc(n)}</option>`).join('');
+  }
   renderOrdersDetail();
 }
 

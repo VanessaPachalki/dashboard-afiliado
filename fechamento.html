@@ -91,14 +91,19 @@
     <div id="escalaConflito2"></div>
     <div id="escalaResults"></div>
 
-    <div class="card" style="margin-top:18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
-        <h3 style="margin:0;">Detalhes dos pedidos</h3>
-        <input type="text" id="ordersDetailSearch" placeholder="Buscar produto, loja ou responsável..." oninput="renderOrdersDetail()" autocomplete="off"
-          style="max-width:300px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+    <details class="card" style="margin-top:18px;">
+      <summary style="cursor:pointer;font-weight:700;font-size:15px;">Detalhes dos pedidos
+        <span style="font-size:12px;color:var(--muted);font-weight:400;">— clique para expandir</span></summary>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 10px;">
+        <input type="text" id="ordersDetailSearch" placeholder="Buscar produto ou loja..." oninput="renderOrdersDetail()" autocomplete="off"
+          style="flex:1;min-width:200px;max-width:300px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+        <select id="ordersDetailResp" onchange="renderOrdersDetail()"
+          style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+          <option value="">Todos os responsáveis</option>
+        </select>
       </div>
       <div id="ordersDetail" style="overflow:auto;max-height:480px;"></div>
-    </div>
+    </details>
 
     <div id="escalaSaveMsg" class="msg" style="margin-top:10px;"></div>
     <div class="wnav"><button class="btn-ghost" onclick="wizardGo(1)">← Editar escala</button></div>
