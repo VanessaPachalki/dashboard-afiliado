@@ -236,8 +236,8 @@ export default async function handler(req, res) {
       if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
     }
 
-    // DEBUG: dump da resposta crua de category_assets (mercados + ids) pra achar o main_account_id
-    if (req.query.debug && req.query.debug !== 'probe') {
+    // DEBUG: dump da resposta crua de category_assets (mercados + ids)
+    if (req.query.debug && req.query.debug !== 'probe' && req.query.debug !== 'sample') {
       const path = '/authorization/202405/category_assets';
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
