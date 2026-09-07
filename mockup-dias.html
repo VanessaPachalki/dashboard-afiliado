@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockups — Dias importados</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  body { padding:0; }
+  .wrap { max-width:760px; margin:0 auto; padding:30px 24px 80px; }
+  .opt { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:28px; }
+  .opt > h2 { margin:0 0 4px; font-size:17px; }
+  .opt > .sub { color:var(--muted); font-size:12px; margin:0 0 18px; }
+  /* Lista por mês */
+  .dl-month { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin:14px 0 6px; }
+  .dl-row { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; margin-bottom:6px; }
+  .dl-row .dl-date { font-weight:700; width:70px; }
+  .dl-row .dl-count { color:var(--muted); font-size:13px; width:120px; }
+  .dl-row .dl-status { flex:1; }
+  .dl-trash { background:transparent; border:1px solid var(--border); border-radius:8px; width:32px; height:32px; cursor:pointer; color:var(--muted); }
+  .dl-trash:hover { border-color:var(--red); color:var(--red); }
+  .dl-search { padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:13px; width:200px; }
+  /* Heatmap */
+  .hm { display:grid; grid-template-columns:repeat(15, 1fr); gap:5px; max-width:520px; }
+  .hm-cell { aspect-ratio:1; border-radius:5px; background:var(--border); cursor:pointer; }
+  .hm-cell.final { background:var(--green); }
+  .hm-cell.pend { background:var(--orange); }
+  .hm-cell:hover { outline:2px solid var(--text); }
+  .hm-tip { font-size:12px; color:var(--muted); margin-top:12px; min-height:18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 style="margin:0 0 6px;">Dias importados — 3 formas</h1>
+  <p style="color:var(--muted);margin:0 0 28px;font-size:14px;">Dados fake pra comparar. Escolha a que você prefere (ou misture ideias).</p>
+
+  <!-- OPÇÃO A -->
+  <div class="opt">
+    <h2>A) Lista por mês <span style="color:var(--orange);font-size:12px;">(recomendo)</span></h2>
+    <p class="sub">Recente no topo, agrupado por mês. Escala bem (só rolar), excluir explícito, busca rápida.</p>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <input class="dl-search" placeholder="Buscar dia (ex: 12/08)...">
+    </div>
+    <div id="listaView"></div>
+  </div>
+
+  <!-- OPÇÃO B -->
+  <div class="opt">
+    <h2>B) Heatmap (tipo GitHub)</h2>
+    <p class="sub">Últimos ~90 dias num olhar. Passa o mouse pra ver a data; clique pra excluir.</p>
+    <div class="hm" id="heatView"></div>
+    <div class="hm-tip" id="heatTip">Passe o mouse num dia…</div>
+    <div class="cal-legend" style="margin-top:14px;">
+      <span><span class="cal-dot" style="background:var(--green);"></span>Final</span>
+      <span><span class="cal-dot" style="background:var(--orange);"></span>Pendentes</span>
+      <span><span class="cal-dot" style="background:var(--border);"></span>Sem dados</span>
+    </div>
+  </div>
+
+  <!-- OPÇÃO C -->
+  <div class="opt">
+    <h2>C) Calendário mensal (atual)</h2>
+    <p class="sub">Bonito pra um mês, mas navega mês a mês (‹ ›).</p>
+    <div class="cal">
+      <div class="cal-header"><button>‹</button><strong>Agosto 2026</strong><button>›</button></div>
+      <div class="cal-grid" id="calView"></div>
+      <div class="cal-legend" style="margin-top:14px;">
+        <span><span class="cal-dot" style="background:var(--green);"></span>Final</span>
+        <span><span class="cal-dot" style="background:var(--orange);"></span>Pendentes</span>
+        <span><span class="cal-dot" style="background:var(--border);"></span>Sem dados</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// dados fake: mapa data->{total, pend}
+const fake = {};
+(function seed() {
+  // Agosto 2026: dias 1..16 com dados (12,13 pendentes)
+  for (let d = 1; d <= 16; d++) {
+    const iso = `2026-08-${String(d).padStart(2, '0')}`;
+    fake[iso] = { total: 800 + Math.round(Math.abs(Math.sin(d)) * 4000), pend: (d === 12 || d === 13 || d === 15) ? 200 + d * 10 : 0 };
+  }
+  // Julho: alguns
+  [28, 29, 30, 31].forEach(d => { fake[`2026-07-${d}`] = { total: 1500 + d * 20, pend: 0 }; });
+})();
+const nf = n => n.toLocaleString('pt-BR');
+
+// A) Lista por mês
+(function () {
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const days = Object.keys(fake).sort().reverse();
+  const byMonth = {};
+  days.forEach(iso => { const k = iso.slice(0, 7); (byMonth[k] = byMonth[k] || []).push(iso); });
+  let html = '';
+  Object.keys(byMonth).sort().reverse().forEach(k => {
+    const [y, m] = k.split('-');
+    html += `<div class="dl-month">${meses[+m - 1]} ${y}</div>`;
+    byMonth[k].forEach(iso => {
+      const info = fake[iso]; const [, mm, dd] = iso.split('-');
+      const status = info.pend > 0
+        ? `<span class="badge badge-pend">⟳ ${nf(info.pend)} pendentes</span>`
+        : `<span class="badge badge-final">✓ Final</span>`;
+      html += `<div class="dl-row"><span class="dl-date">${dd}/${mm}</span><span class="dl-count">${nf(info.total)} pedidos</span><span class="dl-status">${status}</span><button class="dl-trash" title="Excluir dia">🗑</button></div>`;
+    });
+  });
+  document.getElementById('listaView').innerHTML = html;
+})();
+
+// B) Heatmap últimos 90 dias
+(function () {
+  const cells = [];
+  const base = new Date('2026-08-16T12:00:00');
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(base); d.setDate(d.getDate() - i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const info = fake[iso];
+    const cls = info ? (info.pend > 0 ? 'pend' : 'final') : '';
+    cells.push(`<div class="hm-cell ${cls}" data-iso="${iso}" data-info="${info ? nf(info.total) + ' pedidos' + (info.pend ? ' · ' + nf(info.pend) + ' pendentes' : ' · final') : 'sem dados'}"></div>`);
+  }
+  const hv = document.getElementById('heatView');
+  hv.innerHTML = cells.join('');
+  const tip = document.getElementById('heatTip');
+  hv.querySelectorAll('.hm-cell').forEach(c => {
+    c.onmouseenter = () => { const [y, m, d] = c.dataset.iso.split('-'); tip.textContent = `${d}/${m}/${y} — ${c.dataset.info}`; };
+  });
+})();
+
+// C) Calendário Agosto
+(function () {
+  const wds = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  let html = wds.map(w => `<div class="cal-wd">${w}</div>`).join('');
+  const firstDow = new Date(2026, 7, 1).getDay();
+  for (let i = 0; i < firstDow; i++) html += `<div class="cal-day empty"></div>`;
+  for (let d = 1; d <= 31; d++) {
+    const iso = `2026-08-${String(d).padStart(2, '0')}`;
+    const info = fake[iso];
+    if (info) { const cls = info.pend > 0 ? 'pend' : 'final'; html += `<div class="cal-day has ${cls}"><span>${d}</span><span class="cal-cnt">${nf(info.total)}</span></div>`; }
+    else html += `<div class="cal-day"><span>${d}</span></div>`;
+  }
+  document.getElementById('calView').innerHTML = html;
+})();
+</script>
+</body>
+</html>

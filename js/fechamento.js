@@ -1187,37 +1187,23 @@ async function importDays() {
 // ---- Passo 2: carrega os pedidos (Live) do período ----
 async function escalaCarregarPeriodo() {
   const accId = document.getElementById('fechAccount').value;
-  const from = document.getElementById('escalaFrom').value;
-  const to = document.getElementById('escalaTo').value;
-  if (!accId) return setEscalaMsg('err', 'Selecione o creator.');
-  if (!from || !to) return setEscalaMsg('err', 'Selecione De e Até.');
-  if (from > to) return setEscalaMsg('err', 'De deve ser antes de Até.');
+  const liveIni = document.getElementById('liveIni').value; // "YYYY-MM-DDTHH:MM"
+  const liveFim = document.getElementById('liveFim').value;
+  if (!accId) return setEscalaMsg('err', 'Selecione o Creator Host.');
+  if (!liveIni || !liveFim) return setEscalaMsg('err', 'Defina o início e o fim da live.');
+  if (liveIni >= liveFim) return setEscalaMsg('err', 'O início da live deve ser antes do fim.');
+  const from = liveIni.slice(0, 10), to = liveFim.slice(0, 10);
   setEscalaMsg('', 'Carregando pedidos...');
   let q = sb.from('orders').select('*').eq('account_id', accId).eq('content_type', 0)
     .gte('order_date', from).lte('order_date', to).order('order_date');
   if (agencyId()) q = q.eq('agency_id', agencyId());
   const { data, error } = await q;
   if (error) return setEscalaMsg('err', 'Erro: ' + error.message);
-  escalaState = { accountId: accId, from, to, orders: data || [], results: [], pct: 100 };
+  const all = data || [];
   const box = document.getElementById('escalaBox');
-  if (!escalaState.orders.length) {
-    if (box) box.style.display = 'none';
-    setEscalaMsg('err', 'Ainda não há pedidos desse período no sistema.');
-    // período inteiro sem dados -> mesmo modal bonito (todos os dias faltando)
-    const allDays = [];
-    const dd = new Date(from + 'T12:00:00'), ee = new Date(to + 'T12:00:00');
-    while (dd <= ee) {
-      allDays.push(`${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`);
-      dd.setDate(dd.getDate() + 1);
-    }
-    showDataModal(allDays);
-    return;
-  }
-  let mn = null, mx = null;
-  escalaState.orders.forEach(o => { const dt = orderDT(o); if (mn === null || dt < mn) mn = dt; if (mx === null || dt > mx) mx = dt; });
-  escalaState.min = mn; escalaState.max = mx;
-  // dias do período SEM dados -> bloqueia com modal push-up
-  const present = new Set(escalaState.orders.map(o => o.order_date));
+
+  // dias do período que NÃO foram importados -> bloqueia com modal
+  const present = new Set(all.map(o => o.order_date));
   const missing = [];
   const d = new Date(from + 'T12:00:00'), end = new Date(to + 'T12:00:00');
   while (d <= end) {
@@ -1227,17 +1213,25 @@ async function escalaCarregarPeriodo() {
   }
   if (missing.length) {
     if (box) box.style.display = 'none';
-    setEscalaMsg('err', `Faltam dados de ${missing.length} dia(s) do período.`);
+    setEscalaMsg('err', `Faltam dados de ${missing.length} dia(s).`);
     showDataModal(missing);
     return;
   }
 
+  // ESCOPO = só os pedidos DENTRO da janela da live (não os dias inteiros)
+  const inLive = all.filter(o => { const dt = orderDT(o); return dt >= liveIni && dt <= liveFim; });
+  escalaState = { accountId: accId, from, to, liveIni, liveFim, orders: inLive, results: [], pct: 100, min: liveIni, max: liveFim };
+  if (!inLive.length) {
+    if (box) box.style.display = 'none';
+    setEscalaMsg('err', 'Nenhum pedido dentro do horário da live. Ajuste o início/fim.');
+    return;
+  }
   document.getElementById('escalaRange').textContent =
-    `${escalaState.orders.length} pedidos (Live) · disponível de ${fmtDT(mn)} a ${fmtDT(mx)}`;
+    `${inLive.length} pedidos na live · ${fmtDT(liveIni)} → ${fmtDT(liveFim)}`;
   if (box) box.style.display = '';
-  setEscalaMsg('', ''); // o range acima já mostra a contagem
+  setEscalaMsg('', '');
   document.getElementById('escalaRows').innerHTML = '';
-  escalaAddRow(mn, mx); // 1ª linha já cobrindo o período todo
+  escalaAddRow(liveIni, ''); // 1º responsável começa no início da live
 }
 
 function showDataModal(missing) {
@@ -1318,7 +1312,9 @@ function escalaCheckLive() {
   for (let i = 0; i < rows.length; i++)
     for (let j = i + 1; j < rows.length; j++)
       if (rows[i].ini <= rows[j].fim && rows[j].ini <= rows[i].fim)
-        warns.push(`⚠ Sobreposição: "${rows[i].nome || 'turno ' + (i + 1)}" e "${rows[j].nome || 'turno ' + (j + 1)}" pegam o mesmo horário.`);
+        warns.push(`Sobreposição: "${rows[i].nome || 'turno ' + (i + 1)}" e "${rows[j].nome || 'turno ' + (j + 1)}" pegam o mesmo horário.`);
+  if (escalaState.liveIni && rows.some(r => r.ini < escalaState.liveIni || r.fim > escalaState.liveFim))
+    warns.push('Algum turno está fora da janela da live (início/fim).');
   let gap = 0, gapReceb = 0, over = 0;
   escalaState.orders.forEach(o => {
     const dt = orderDT(o);
@@ -1334,6 +1330,12 @@ function escalaCheckLive() {
 }
 
 function escalaCalcAll() {
+  // último turno com fim vazio -> autocompleta com o fim da live
+  const trs = document.querySelectorAll('#escalaRows tr');
+  if (trs.length && escalaState.liveFim) {
+    const lastFim = trs[trs.length - 1].querySelector('.es-fim');
+    if (lastFim && !lastFim.value) lastFim.value = escalaState.liveFim;
+  }
   const rows = escalaReadRows();
   const valid = rows.filter(r => r.nome && r.ini && r.fim && r.ini < r.fim);
   if (!valid.length) return setEscalaMsg('err', 'Adicione ao menos um turno com nome, início e fim.');

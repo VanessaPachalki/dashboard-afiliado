@@ -42,18 +42,16 @@
   <div style="margin-top:8px;">
     <strong style="font-size:13px;">Dias importados</strong>
     <p style="color:var(--muted);font-size:12px;margin:4px 0 14px;">Verde = final (0 pendentes) · Laranja = tem pendentes (vale atualizar). Clique num dia para excluir os dados dele.</p>
-    <div class="cal">
-      <div class="cal-header">
-        <button onclick="calMove(-1)" title="Mês anterior">‹</button>
-        <strong id="calTitle"></strong>
-        <button onclick="calMove(1)" title="Próximo mês">›</button>
-      </div>
-      <div class="cal-grid" id="calGrid"></div>
-      <div class="cal-legend">
-        <span><span class="cal-dot" style="background:var(--green);"></span>Final</span>
-        <span><span class="cal-dot" style="background:var(--orange);"></span>Pendentes</span>
-        <span><span class="cal-dot" style="background:var(--border);"></span>Sem dados</span>
-      </div>
+    <div class="cal-range">
+      <button class="cal-range-btn active" data-n="3" onclick="calRange(3)">Últimos 3 meses</button>
+      <button class="cal-range-btn" data-n="6" onclick="calRange(6)">Últimos 6</button>
+      <button class="cal-range-btn" data-n="12" onclick="calRange(12)">Último ano</button>
+    </div>
+    <div class="cal-slider" id="calSlider"></div>
+    <div class="cal-legend" style="margin-top:14px;">
+      <span><span class="cal-dot" style="background:var(--green);"></span>Final</span>
+      <span><span class="cal-dot" style="background:var(--orange);"></span>Pendentes</span>
+      <span><span class="cal-dot" style="background:var(--border);"></span>Sem dados</span>
     </div>
     <div class="msg" id="calMsg" style="margin-top:10px;"></div>
   </div>
@@ -76,46 +74,45 @@
   const p = new URLSearchParams(location.search);
   if (p.get('from')) document.getElementById('impFrom').value = p.get('from');
   if (p.get('to')) document.getElementById('impTo').value = p.get('to');
-  // calendário no mês do ?from (ou mês atual)
-  const base = p.get('from') ? new Date(p.get('from') + 'T12:00:00') : new Date();
-  calY = base.getFullYear(); calM = base.getMonth();
-  loadCalendar();
+  loadSlider();
 })();
 
-// ---- Calendário de dias importados ----
-let calY, calM;
-function calMove(delta) {
-  calM += delta;
-  if (calM < 0) { calM = 11; calY--; }
-  if (calM > 11) { calM = 0; calY++; }
-  loadCalendar();
+// ---- Slider de meses (3 por vez) ----
+let calMonths = 3;
+function calRange(n) {
+  calMonths = n;
+  document.querySelectorAll('.cal-range-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.n) === n));
+  loadSlider();
 }
-async function loadCalendar() {
-  const first = `${calY}-${String(calM + 1).padStart(2, '0')}-01`;
-  const lastDay = new Date(calY, calM + 1, 0).getDate();
-  const last = `${calY}-${String(calM + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  document.getElementById('calTitle').textContent =
-    new Date(calY, calM, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const grid = document.getElementById('calGrid');
+async function loadSlider() {
+  const now = new Date();
+  const months = [];
+  for (let i = calMonths - 1; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({ y: d.getFullYear(), m: d.getMonth() }); }
+  const f = months[0];
+  const firstIso = `${f.y}-${String(f.m + 1).padStart(2, '0')}-01`;
+  const ld = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const lastIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(ld).padStart(2, '0')}`;
   const calMsg = document.getElementById('calMsg');
-  const { data, error } = await sb.rpc('fech_days', { p_from: first, p_to: last });
+  const { data, error } = await sb.rpc('fech_days', { p_from: firstIso, p_to: lastIso });
   const map = {};
   if (!error && data) data.forEach(r => map[r.order_date] = { total: Number(r.total), pend: Number(r.pendentes) });
-  const wds = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-  let html = wds.map(w => `<div class="cal-wd">${w}</div>`).join('');
-  const firstDow = new Date(calY, calM, 1).getDay();
-  for (let i = 0; i < firstDow; i++) html += `<div class="cal-day empty"></div>`;
-  for (let d = 1; d <= lastDay; d++) {
-    const iso = `${calY}-${String(calM + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const info = map[iso];
-    if (info) {
-      const cls = info.pend > 0 ? 'pend' : 'final';
-      html += `<div class="cal-day has ${cls}" onclick="calDayClick('${iso}',${info.total},${info.pend})"><span>${d}</span><span class="cal-cnt">${info.total.toLocaleString('pt-BR')}</span></div>`;
-    } else {
-      html += `<div class="cal-day"><span>${d}</span></div>`;
+  const mn = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const wds = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  const slider = document.getElementById('calSlider');
+  slider.innerHTML = months.map(({ y, m }) => {
+    const last = new Date(y, m + 1, 0).getDate();
+    const fdow = new Date(y, m, 1).getDay();
+    let cells = wds.map(w => `<div class="mm-wd">${w}</div>`).join('');
+    for (let i = 0; i < fdow; i++) cells += `<div class="mm-day"></div>`;
+    for (let d = 1; d <= last; d++) {
+      const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const info = map[iso];
+      if (info) { const cls = info.pend > 0 ? 'pend' : 'final'; cells += `<div class="mm-day has ${cls}" title="${d}/${m + 1} · ${info.total.toLocaleString('pt-BR')} pedidos${info.pend ? ' · ' + info.pend + ' pendentes' : ''}" onclick="calDayClick('${iso}',${info.total},${info.pend})">${d}</div>`; }
+      else cells += `<div class="mm-day">${d}</div>`;
     }
-  }
-  grid.innerHTML = html;
+    return `<div class="mini-month"><div class="mm-title">${mn[m]} ${y}</div><div class="mm-grid">${cells}</div></div>`;
+  }).join('');
+  slider.scrollLeft = slider.scrollWidth; // mostra os meses mais recentes
   calMsg.className = 'msg'; calMsg.textContent = '';
   if (error) { calMsg.className = 'msg msg-err'; calMsg.textContent = `Erro ao carregar dias: ${error.message} (rodou a migration fech-days-summary.sql?)`; }
 }
@@ -129,7 +126,7 @@ async function calDayClick(iso, total, pend) {
   const { error } = await q;
   if (error) { calMsg.className = 'msg msg-err'; calMsg.textContent = 'Erro ao excluir: ' + error.message; return; }
   calMsg.className = 'msg msg-ok'; calMsg.textContent = `Dia ${d}/${m} excluído.`;
-  loadCalendar();
+  loadSlider();
 }
 
 async function importDays() {
