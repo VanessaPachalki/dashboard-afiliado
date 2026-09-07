@@ -1243,7 +1243,7 @@ async function loadFreshness() {
   const el = document.getElementById('freshList');
   if (!from || !to) { el.innerHTML = '<div class="msg msg-err">Selecione De e Até.</div>'; return; }
   el.innerHTML = '<div class="msg">Carregando...</div>';
-  const { data, error } = await sb.rpc('fech_days', { p_from: from, p_to: to });
+  const { data, error } = await sb.rpc('fech_days', { p_from: from, p_to: to, p_agency: agencyId() || null });
   if (error) { el.innerHTML = `<div class="msg msg-err">Erro: ${error.message} (rodou a migration fech-days-summary.sql?)</div>`; return; }
   if (!data || !data.length) { el.innerHTML = '<div class="msg">Nenhum pedido nesse período. Importe abaixo.</div>'; return; }
   const fmtDay = d => { const [y, m, dd] = d.split('-'); return `${dd}/${m}/${y}`; };
