@@ -237,7 +237,7 @@ export default async function handler(req, res) {
     }
 
     // DEBUG: dump da resposta crua de category_assets (mercados + ids) pra achar o main_account_id
-    if (req.query.debug) {
+    if (req.query.debug && req.query.debug !== 'probe') {
       const path = '/authorization/202405/category_assets';
       const timestamp = Math.floor(Date.now() / 1000).toString();
       const q = { app_key: process.env.TIKTOK_APP_KEY, timestamp };
