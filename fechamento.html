@@ -41,7 +41,9 @@
   <h2>Calcular Fechamento</h2>
   <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr auto;gap:10px;align-items:end;">
     <div class="field">
-      <label for="fechAccount">Conta</label>
+      <label for="fechAccount">Conta / Creator</label>
+      <input type="text" id="fechAccountSearch" placeholder="Buscar creator..." oninput="filterFechAccounts()" autocomplete="off"
+        style="margin-bottom:6px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;width:100%;box-sizing:border-box;">
       <select id="fechAccount" onchange="onFechAccountChange()">
         <option value="">Selecione</option>
       </select>

@@ -70,6 +70,7 @@ function mapSkuOrder(so, matrizUid, uploadId) {
     day_of_week: t.dow,
     gmv: _amt(so.price),
     settlement_status: mapStatus(so.settle_status),
+    settle_status_raw: so.settle_status || null,
     content_type: CONTENT_TYPE_MAP[String(so.content_type || '').toUpperCase()] ?? 0,
     content_id: String(so.content_id || '').slice(-6),
     store_name: so.shop_name || 'Desconhecida',

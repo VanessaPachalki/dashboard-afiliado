@@ -69,13 +69,34 @@ async function initFechamento() {
   const fechAccSel = document.getElementById('fechAccount');
 
   const opts = allAccountsList.map(a =>
-    `<option value="${escAttr(a.id)}">${esc(a.name)} (${esc(a.email)})</option>`
+    `<option value="${escAttr(a.id)}">${esc(a.name)}${a.email ? ' (' + esc(a.email) + ')' : ''}</option>`
   ).join('');
 
   sellerAccSel.innerHTML = '<option value="">Selecione a conta</option>' + opts;
   fechAccSel.innerHTML = '<option value="">Selecione</option>' + opts;
 
   await loadSellers();
+}
+
+// Opções do seletor de conta do Fechamento (usado pela busca)
+function fechAccountOptions(list) {
+  return '<option value="">Selecione</option>' + list.map(a =>
+    `<option value="${escAttr(a.id)}">${esc(a.name)}${a.email ? ' (' + esc(a.email) + ')' : ''}</option>`
+  ).join('');
+}
+
+// Filtra o seletor de conta/creator conforme o texto digitado
+function filterFechAccounts() {
+  const q = (document.getElementById('fechAccountSearch').value || '').toLowerCase().trim();
+  const list = q
+    ? allAccountsList.filter(a =>
+        (a.name || '').toLowerCase().includes(q) || (a.email || '').toLowerCase().includes(q))
+    : allAccountsList;
+  const sel = document.getElementById('fechAccount');
+  const cur = sel.value;
+  sel.innerHTML = fechAccountOptions(list);
+  // mantém a seleção se ainda estiver na lista filtrada
+  if (cur && list.some(a => a.id === cur)) sel.value = cur;
 }
 
 // ===== SELLERS CRUD =====
@@ -344,6 +365,35 @@ function renderLives() {
 
 // ===== CALCULATE =====
 
+// Status granular (5 níveis da API + fallback pro int do upload manual).
+// Retorna: liquidado | pendente | naopago | cancelado | devolucao | analise | aguardando
+function granularStatus(o) {
+  const raw = String(o.settle_status_raw || '').toUpperCase();
+  if (raw) {
+    if (raw.includes('SETTLED')) return 'liquidado';
+    if (raw.includes('INELIGIBLE')) return o.items_refunded > 0 ? 'devolucao' : 'cancelado';
+    if (raw.includes('UNPAID')) return 'naopago';
+    if (raw.includes('FROZEN')) return 'analise';
+    if (raw.includes('PENDING')) return 'pendente';
+  }
+  // fallback pelo settlement_status int (dados do upload manual)
+  const s = o.settlement_status;
+  if (s === 0) return 'liquidado';
+  if (s === 1) return o.items_refunded > 0 ? 'devolucao' : 'cancelado';
+  if (s === 3) return 'aguardando';
+  return 'pendente';
+}
+
+const GRAN_CARDS = [
+  ['liquidado', 'Liquidados', 'var(--green)'],
+  ['pendente', 'Pendentes', 'var(--cream)'],
+  ['naopago', 'Não pago p/ cliente', 'var(--orange)'],
+  ['cancelado', 'Cancelados', '#9B59B6'],
+  ['devolucao', 'Devoluções', 'var(--red)'],
+  ['analise', 'Em análise (fraude)', 'var(--muted)'],
+  ['aguardando', 'Aguardando pgto.', 'var(--muted)']
+];
+
 function calcularFechamento() {
   const sellerId = document.getElementById('fechSeller').value;
   const seller = allSellers.find(s => s.id === sellerId);
@@ -446,6 +496,16 @@ function calcularFechamento() {
     inelegiveis: inelegiveis.length
   };
 
+  // Contagem por status granular (mostra só os que têm pedido + Liquidados sempre)
+  const gran = { liquidado: 0, pendente: 0, naopago: 0, cancelado: 0, devolucao: 0, analise: 0, aguardando: 0 };
+  orders.forEach(o => { gran[granularStatus(o)]++; });
+  const granHtml = GRAN_CARDS
+    .filter(([k]) => gran[k] > 0 || k === 'liquidado')
+    .map(([k, label, color]) =>
+      `<div class="kpi"><div class="kpi-v" style="color:${color};">${gran[k]}</div><div class="kpi-l">${label}</div></div>`
+    ).join('') +
+    `<div class="kpi"><div class="kpi-v" style="color:var(--cream);">${itensDevolvidos}</div><div class="kpi-l">Itens Reembolsados</div></div>`;
+
   document.getElementById('resultSummary').innerHTML = `
     <div class="callout">
       <strong>${esc(seller.name)}</strong> &mdash;
@@ -453,11 +513,8 @@ function calcularFechamento() {
       turno <strong>${turnoStr}</strong> &mdash;
       <strong>${orders.length}</strong> de ${totalPeriodo} pedidos do período
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px;">
-      <div class="kpi"><div class="kpi-v" style="color:var(--green);">${liquidados.length}</div><div class="kpi-l">Liquidados</div></div>
-      <div class="kpi"><div class="kpi-v" style="color:#9B59B6;">${cancelamentos.length}</div><div class="kpi-l">Cancelados</div></div>
-      <div class="kpi"><div class="kpi-v" style="color:var(--red);">${devolucoes.length}</div><div class="kpi-l">Devoluções</div></div>
-      <div class="kpi"><div class="kpi-v" style="color:var(--cream);">${itensDevolvidos}</div><div class="kpi-l">Itens Reembolsados</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:12px;">
+      ${granHtml}
     </div>
   `;
 
