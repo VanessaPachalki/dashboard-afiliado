@@ -277,10 +277,16 @@ function fpRenderResults() {
        <span style="width:8px;height:8px;border-radius:50%;background:${s.color};"></span>${s.label}: ${s.n} <span style="opacity:.75;font-weight:600;">${pct1(s.pct)}</span></span>`).join('');
   const repasseLine = r.pct > 0
     ? ` · repasse <strong>${r.pct}%</strong> · a pagar <strong style="color:var(--orange);">${fpBRL(r.pagar)}</strong>` : '';
+  // igual ao turno: o número que vale é o LIQUIDADO (recebida); o pendente é só aviso.
+  const pendWarn = r.pendente > 0
+    ? sbBanner('warn', '◔', `${fpBRL(r.pendente)} em comissão ainda pendente de liquidação (estimada) — entra no valor quando o TikTok liquidar.`)
+    : '';
   document.getElementById('fpResultInfo').innerHTML =
     `<strong>${fpState.selected.size}</strong> produto(s) · <strong>${hostStr}</strong> · ${fpDate(fpState.from)} a ${fpDate(fpState.to)}
-     <br>comissão estimada <strong style="color:var(--orange);">${fpBRL(r.estimada)}</strong> · recebida <strong style="color:var(--green);">${fpBRL(r.recebida)}</strong> · pendente ${fpBRL(r.pendente)} · GMV ${fpBRL(r.gmv)} · ${r.total} pedidos${repasseLine}
-     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">${chips}</div>`;
+     <br>comissão recebida <strong style="color:var(--green);">${fpBRL(r.recebida)}</strong>${repasseLine} · GMV ${fpBRL(r.gmv)} · ${r.total} pedidos
+     <br><span style="font-size:12px;color:var(--muted);">comissão estimada total ${fpBRL(r.estimada)} · pendente ${fpBRL(r.pendente)}</span>
+     <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">${chips}</div>
+     ${pendWarn ? `<div style="margin-top:10px;">${pendWarn}</div>` : ''}`;
 
   // tabela por produto
   const showPagar = r.pct > 0;
@@ -290,8 +296,8 @@ function fpRenderResults() {
       <td class="r">${p.liq}</td>
       <td class="r">${p.inel}</td>
       <td class="r">${fpBRL(p.gmv)}</td>
-      <td class="r"><strong style="color:var(--orange);">${fpBRL(p.estimada)}</strong></td>
-      <td class="r" style="color:var(--green);">${fpBRL(p.recebida)}</td>
+      <td class="r"><strong style="color:var(--green);">${fpBRL(p.recebida)}</strong></td>
+      <td class="r" style="color:var(--muted);">${fpBRL(p.estimada)}</td>
       <td class="r" style="color:var(--muted);">${fpBRL(p.pendente)}</td>
       ${showPagar ? `<td class="r"><strong style="color:var(--orange);">${fpBRL(p.recebida * r.pct / 100)}</strong></td>` : ''}
     </tr>`).join('');
@@ -301,13 +307,13 @@ function fpRenderResults() {
       <td class="r">${r.produtos.reduce((s, p) => s + p.liq, 0)}</td>
       <td class="r">${r.produtos.reduce((s, p) => s + p.inel, 0)}</td>
       <td class="r">${fpBRL(r.gmv)}</td>
-      <td class="r" style="color:var(--orange);">${fpBRL(r.estimada)}</td>
       <td class="r" style="color:var(--green);">${fpBRL(r.recebida)}</td>
+      <td class="r" style="color:var(--muted);">${fpBRL(r.estimada)}</td>
       <td class="r" style="color:var(--muted);">${fpBRL(r.pendente)}</td>
       ${showPagar ? `<td class="r" style="color:var(--orange);">${fpBRL(r.pagar)}</td>` : ''}
     </tr>`;
   let html = `<div style="overflow-x:auto;"><table class="escala-table">
-    <thead><tr><th>Produto</th><th class="r">Ped.</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">GMV</th><th class="r" title="comissão da venda (todos os pedidos)">Estimada</th><th class="r">Recebida</th><th class="r">Pendente</th>${showPagar ? '<th class="r">A pagar</th>' : ''}</tr></thead>
+    <thead><tr><th>Produto</th><th class="r">Ped.</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">GMV</th><th class="r">Recebida</th><th class="r" title="comissão da venda (todos os pedidos)">Estimada</th><th class="r">Pendente</th>${showPagar ? '<th class="r">A pagar</th>' : ''}</tr></thead>
     <tbody>${body}${totRow}</tbody></table></div>`;
 
   // repasse por responsável
@@ -422,11 +428,12 @@ function fpImagemBlob(g) {
   y += 40; ctx.fillStyle = '#8a8a92'; ctx.font = '400 26px system-ui, sans-serif'; ctx.fillText(`${g.host} · ${g.periodo}`, PAD, y);
   y += 46; divider(y);
   y += 78; ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif';
-  ctx.fillText(hasPag ? `TOTAL A PAGAR · repasse ${g.pct}%` : 'COMISSÃO ESTIMADA', PAD, y);
+  ctx.fillText(hasPag ? `TOTAL A PAGAR · repasse ${g.pct}%` : 'COMISSÃO RECEBIDA (liquidada)', PAD, y);
   y += 104; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif';
-  ctx.fillText(fpBRL(hasPag ? g.pagar : g.estimada), PAD, y);
+  ctx.fillText(fpBRL(hasPag ? g.pagar : g.recebida), PAD, y);
   y += 44; ctx.fillStyle = '#8a8a92'; ctx.font = '400 24px system-ui, sans-serif';
-  ctx.fillText(`Estimada ${fpBRL(g.estimada)} · recebida ${fpBRL(g.recebida)} · pendente ${fpBRL(g.pendente)} · ${g.total} pedidos`, PAD, y);
+  ctx.fillText(`Recebida ${fpBRL(g.recebida)} · estimada ${fpBRL(g.estimada)} · ${g.total} pedidos`, PAD, y);
+  if (g.pendente > 0) { y += 34; ctx.fillStyle = '#D4A76A'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillText(`◔ ${fpBRL(g.pendente)} pendente de liquidação (estimada) — ainda não entra no valor`, PAD, y); }
   y += 44; divider(y);
 
   const dist = g.statusDist;
@@ -446,14 +453,14 @@ function fpImagemBlob(g) {
   }
 
   y += 54; ctx.fillStyle = '#8a8a92'; ctx.font = '700 22px system-ui, sans-serif';
-  ctx.textAlign = 'left'; ctx.fillText('PRODUTO', PAD, y); ctx.textAlign = 'right'; ctx.fillText('COMISSÃO EST.', W - PAD, y); ctx.textAlign = 'left';
+  ctx.textAlign = 'left'; ctx.fillText('PRODUTO', PAD, y); ctx.textAlign = 'right'; ctx.fillText('RECEBIDA', W - PAD, y); ctx.textAlign = 'left';
   g.produtos.slice(0, 40).forEach(p => {
     y += 56;
     ctx.fillStyle = '#1a1a1e'; ctx.font = '600 26px system-ui, sans-serif'; ctx.textAlign = 'left';
     const name = p.name.length > 46 ? p.name.slice(0, 45) + '…' : p.name;
     ctx.fillText(name, PAD, y);
-    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)} · recebida ${fpBRL(p.recebida)}`, PAD, y + 24);
-    ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '700 28px system-ui, sans-serif'; ctx.fillText(fpBRL(p.estimada), W - PAD, y);
+    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)} · estimada ${fpBRL(p.estimada)}`, PAD, y + 24);
+    ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '700 28px system-ui, sans-serif'; ctx.fillText(fpBRL(p.recebida), W - PAD, y);
     ctx.textAlign = 'left';
     ctx.strokeStyle = '#f2f2f5'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD, y + 36); ctx.lineTo(W - PAD, y + 36); ctx.stroke();
   });
@@ -495,12 +502,13 @@ function fpPdfBlob(g) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(26); doc.text(pdfSafe(g.title), 20, 40);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120); doc.text(pdfSafe(`${g.host} - ${g.periodo}`), 20, 47);
     doc.setDrawColor(220); doc.line(20, 52, 190, 52);
-    doc.setFontSize(10); doc.setTextColor(120); doc.text(hasPag ? `TOTAL A PAGAR - repasse ${g.pct}%` : 'COMISSAO ESTIMADA', 20, 62);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fpBRL(hasPag ? g.pagar : g.estimada), 20, 74);
+    doc.setFontSize(10); doc.setTextColor(120); doc.text(hasPag ? `TOTAL A PAGAR - repasse ${g.pct}%` : 'COMISSAO RECEBIDA (liquidada)', 20, 62);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fpBRL(hasPag ? g.pagar : g.recebida), 20, 74);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(pdfSafe(`Estimada ${fpBRL(g.estimada)} - recebida ${fpBRL(g.recebida)} - pendente ${fpBRL(g.pendente)} - ${g.total} pedidos`), 20, 81);
-    doc.setDrawColor(220); doc.line(20, 86, 190, 86);
-    let y = 95;
+    doc.text(pdfSafe(`Recebida ${fpBRL(g.recebida)} - estimada ${fpBRL(g.estimada)} - ${g.total} pedidos`), 20, 81);
+    let y = 86;
+    if (g.pendente > 0) { doc.setFontSize(9); doc.setTextColor(180, 140, 60); doc.text(pdfSafe(`(*) ${fpBRL(g.pendente)} em comissao pendente de liquidacao (estimada) - ainda nao entra no valor`), 20, y); y += 5; }
+    doc.setDrawColor(220); doc.line(20, y, 190, y); y += 9;
     // ---- POR PRODUTO: valores + breakdown de status (número + %) ----
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120); doc.text('POR PRODUTO', 20, y); y += 7;
     g.produtos.forEach(p => {
@@ -510,7 +518,7 @@ function fpPdfBlob(g) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
       doc.text(pdfSafe(`${p.count} pedidos - ${p.inel} inelegivel(is) - GMV ${fpBRL(p.gmv)}`), 20, y); y += 4.5;
       doc.setTextColor(...orange); doc.setFont('helvetica', 'bold');
-      doc.text(pdfSafe(`comissao estimada ${fpBRL(p.estimada)} - recebida ${fpBRL(p.recebida)}`), 20, y); y += 5.5;
+      doc.text(pdfSafe(`comissao recebida ${fpBRL(p.recebida)} - estimada ${fpBRL(p.estimada)}`), 20, y); y += 5.5;
       (p.dist.items || []).forEach(s => {
         if (y > 288) { doc.addPage(); y = 20; }
         const rgb = hexToRgb(s.hex);
