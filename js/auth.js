@@ -106,6 +106,7 @@ async function renderNav(activePage) {
     <div class="nav-group">
       <div class="nav-group-title">Operação</div>
       ${link('fechamento.html', 'Fechamento', 'fechamento')}
+      ${link('fechamento-produto.html', 'Fechamento por produto', 'fechamento-produto')}
       ${link('historico.html', 'Histórico', 'historico')}
     </div>`;
 
@@ -132,7 +133,7 @@ async function renderNav(activePage) {
   // prefetch das páginas do menu -> navegação instantânea
   if (!window._navPrefetched) {
     window._navPrefetched = true;
-    const pages = ['fechamento.html', 'historico.html'];
+    const pages = ['fechamento.html', 'fechamento-produto.html', 'historico.html'];
     if (isMatriz) pages.push('admin.html', 'conta.html', 'sincronizar.html', 'settings.html');
     pages.forEach(h => { const l = document.createElement('link'); l.rel = 'prefetch'; l.href = h; document.head.appendChild(l); });
   }

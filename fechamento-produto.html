@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>body{visibility:hidden}</style>
+<title>SPACEHUB — Fechamento por produto</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">SPACEHUB <small>Fechamento por produto</small></div>
+  <div class="nav-links" id="topbar-nav"></div>
+</div>
+
+<div class="container" style="max-width:1100px;">
+
+<!-- Stepper -->
+<div class="wizard-steps">
+  <div class="wstep active" id="fpws1" onclick="fpWizardGo(1)"><span class="wnum">1</span> Período &amp; produtos</div>
+  <div class="wstep" id="fpws2" onclick="fpWizardGo(2)"><span class="wnum">2</span> Resultado</div>
+</div>
+
+<!-- ===== PASSO 1: FILTROS ===== -->
+<div class="wpanel" id="fpwpanel1">
+  <div class="admin-section">
+    <h2>Período &amp; produtos</h2>
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:end;">
+      <div class="field" style="position:relative;">
+        <label>Creator Host <span style="color:var(--muted);font-weight:400;">(opcional)</span></label>
+        <input type="text" id="fechAccountSearch" placeholder="Todos os creators..." autocomplete="off"
+          oninput="comboFilter()" onfocus="comboFilter()"
+          style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;width:100%;box-sizing:border-box;">
+        <input type="hidden" id="fechAccount">
+        <div id="fechAccountList" class="combo-list" style="display:none;"></div>
+      </div>
+      <div class="field"><label for="fpFrom">Data início</label><input type="date" id="fpFrom"></div>
+      <div class="field"><label for="fpTo">Data fim</label><input type="date" id="fpTo"></div>
+      <button class="btn-ghost" onclick="fpCarregar()">Carregar produtos</button>
+    </div>
+    <div class="msg" id="fpMsg" style="margin:10px 0;"></div>
+
+    <!-- Seletor de produtos -->
+    <div id="fpProdBox" style="display:none;margin-top:8px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 10px;">
+        <strong style="font-size:13px;">Produtos</strong>
+        <span id="fpProdMeta" style="font-size:11px;color:var(--muted);"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn-sm" onclick="fpSelectAllFiltered()">Selecionar todos</button>
+          <button class="btn-sm" onclick="fpClearSelection()">Limpar</button>
+        </div>
+      </div>
+      <input type="text" id="fpProdSearch" placeholder="Buscar produto..." oninput="fpRenderProducts()" autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;margin-bottom:10px;">
+      <div id="fpProdList" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:10px;"></div>
+
+      <!-- Repasse opcional -->
+      <details class="card" style="margin-top:16px;">
+        <summary style="cursor:pointer;font-weight:700;font-size:14px;">Repasse a responsável(is) <span style="font-size:12px;color:var(--muted);font-weight:400;">(opcional — deixe em branco pra só ver os totais)</span></summary>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:14px 0 12px;">
+          <div style="display:flex;align-items:center;gap:8px;background:var(--orange-soft);border:1.5px solid var(--orange);border-radius:12px;padding:7px 14px;">
+            <span style="font-size:12px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">% de repasse ao responsável</span>
+            <input type="text" id="fpPct" inputmode="decimal" placeholder="0" value=""
+              style="width:58px;padding:5px 8px;border-radius:8px;border:1.5px solid var(--orange);background:var(--bg);color:var(--orange);font-size:16px;font-weight:800;text-align:center;">
+            <span style="font-size:16px;color:var(--orange);font-weight:800;">%</span>
+          </div>
+        </div>
+        <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">Aplica a % sobre a comissão <strong>recebida</strong> dos produtos selecionados. Adicione um ou mais responsáveis pra repartir o valor (o split começa igual e é editável).</span>
+        <datalist id="auxDatalist"></datalist>
+        <div id="fpRespCell" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
+          <input id="fpRespInput" list="auxDatalist" placeholder="Responsável (Enter)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();fpRespAdd(this);}" onchange="fpRespAdd(this)" onblur="fpRespAdd(this)"
+            style="border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--bg);color:var(--text);font-size:13px;flex:1;min-width:150px;">
+        </div>
+        <div id="fpRespSum" style="font-size:10px;margin-top:6px;"></div>
+      </details>
+
+      <div class="wnav">
+        <button class="btn-primary" onclick="fpCalcular()">Calcular →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== PASSO 2: RESULTADO ===== -->
+<div class="wpanel" id="fpwpanel2" style="display:none;">
+  <div class="admin-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+      <h2 style="margin:0;">Resultado por produto</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn-ghost" onclick="fpBaixar('img')">Relatório (img)</button>
+        <button class="btn-ghost" onclick="fpBaixar('pdf')">Relatório (PDF)</button>
+      </div>
+    </div>
+    <div id="fpResultInfo" class="callout" style="margin-bottom:12px;"></div>
+    <div id="fpResults"></div>
+
+    <details class="card" style="margin-top:18px;">
+      <summary style="cursor:pointer;font-weight:700;font-size:15px;">Detalhes dos pedidos
+        <span style="font-size:12px;color:var(--muted);font-weight:400;">(clique para ver)</span></summary>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 12px;align-items:center;">
+        <input type="text" id="fpDetailSearch" placeholder="Buscar produto ou loja" oninput="fpRenderDetail()" autocomplete="off"
+          style="flex:1;min-width:180px;max-width:280px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+        <select id="fpDetailStatus" onchange="fpRenderDetail()"
+          style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;">
+          <option value="">Todos status</option>
+          <option value="liquidado">Liquidado</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="devolucao">Devolução</option>
+          <option value="pendente">Pendente</option>
+          <option value="naopago">Não pago</option>
+          <option value="aguardando">Aguardando</option>
+          <option value="analise">Em análise</option>
+        </select>
+      </div>
+      <div id="fpDetail" style="overflow:auto;max-height:480px;"></div>
+    </details>
+
+    <div class="wnav"><button class="btn-ghost" onclick="fpWizardGo(1)">← Editar filtros</button></div>
+  </div>
+</div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase-config.js"></script>
+<script src="js/tenant.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/fechamento.js"></script>
+<script src="js/fechamento-produto.js"></script>
+<script>
+(async () => {
+  await resolveTenant();
+  const session = await requireAuth();
+  if (!session) return;
+  await renderNav('fechamento-produto');
+  await initFechamentoProduto();
+})();
+</script>
+</body>
+</html>
