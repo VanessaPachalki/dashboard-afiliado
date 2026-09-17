@@ -432,7 +432,7 @@ function fpImagemBlob(g) {
   y += 104; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif';
   ctx.fillText(fpBRL(hasPag ? g.pagar : g.recebida), PAD, y);
   y += 44; ctx.fillStyle = '#8a8a92'; ctx.font = '400 24px system-ui, sans-serif';
-  ctx.fillText(`Recebida ${fpBRL(g.recebida)} · estimada ${fpBRL(g.estimada)} · ${g.total} pedidos`, PAD, y);
+  ctx.fillText(`Recebida ${fpBRL(g.recebida)} · ${g.total} pedidos`, PAD, y);
   if (g.pendente > 0) { y += 34; ctx.fillStyle = '#D4A76A'; ctx.font = '700 22px system-ui, sans-serif'; ctx.fillText(`◔ ${fpBRL(g.pendente)} pendente de liquidação (estimada) — ainda não entra no valor`, PAD, y); }
   y += 44; divider(y);
 
@@ -459,7 +459,7 @@ function fpImagemBlob(g) {
     ctx.fillStyle = '#1a1a1e'; ctx.font = '600 26px system-ui, sans-serif'; ctx.textAlign = 'left';
     const name = p.name.length > 46 ? p.name.slice(0, 45) + '…' : p.name;
     ctx.fillText(name, PAD, y);
-    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)} · estimada ${fpBRL(p.estimada)}`, PAD, y + 24);
+    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)}`, PAD, y + 24);
     ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '700 28px system-ui, sans-serif'; ctx.fillText(fpBRL(p.recebida), W - PAD, y);
     ctx.textAlign = 'left';
     ctx.strokeStyle = '#f2f2f5'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD, y + 36); ctx.lineTo(W - PAD, y + 36); ctx.stroke();
@@ -505,7 +505,7 @@ function fpPdfBlob(g) {
     doc.setFontSize(10); doc.setTextColor(120); doc.text(hasPag ? `TOTAL A PAGAR - repasse ${g.pct}%` : 'COMISSAO RECEBIDA (liquidada)', 20, 62);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fpBRL(hasPag ? g.pagar : g.recebida), 20, 74);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(pdfSafe(`Recebida ${fpBRL(g.recebida)} - estimada ${fpBRL(g.estimada)} - ${g.total} pedidos`), 20, 81);
+    doc.text(pdfSafe(`Recebida ${fpBRL(g.recebida)} - ${g.total} pedidos`), 20, 81);
     let y = 86;
     if (g.pendente > 0) { doc.setFontSize(9); doc.setTextColor(180, 140, 60); doc.text(pdfSafe(`(*) ${fpBRL(g.pendente)} em comissao pendente de liquidacao (estimada) - ainda nao entra no valor`), 20, y); y += 5; }
     doc.setDrawColor(220); doc.line(20, y, 190, y); y += 9;
@@ -518,7 +518,7 @@ function fpPdfBlob(g) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
       doc.text(pdfSafe(`${p.count} pedidos - ${p.inel} inelegivel(is) - GMV ${fpBRL(p.gmv)}`), 20, y); y += 4.5;
       doc.setTextColor(...orange); doc.setFont('helvetica', 'bold');
-      doc.text(pdfSafe(`comissao recebida ${fpBRL(p.recebida)} - estimada ${fpBRL(p.estimada)}`), 20, y); y += 5.5;
+      doc.text(pdfSafe(`comissao recebida ${fpBRL(p.recebida)}`), 20, y); y += 5.5;
       (p.dist.items || []).forEach(s => {
         if (y > 288) { doc.addPage(); y = 20; }
         const rgb = hexToRgb(s.hex);
