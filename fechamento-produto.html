@@ -55,26 +55,26 @@
         style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;margin-bottom:10px;">
       <div id="fpProdList" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:10px;"></div>
 
-      <!-- Repasse opcional -->
-      <details class="card" style="margin-top:16px;">
-        <summary style="cursor:pointer;font-weight:700;font-size:14px;">Repasse a responsável(is) <span style="font-size:12px;color:var(--muted);font-weight:400;">(opcional — deixe em branco pra só ver os totais)</span></summary>
-        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:14px 0 12px;">
-          <div style="display:flex;align-items:center;gap:8px;background:var(--orange-soft);border:1.5px solid var(--orange);border-radius:12px;padding:7px 14px;">
-            <span style="font-size:12px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">% de repasse ao responsável</span>
+      <!-- Repasse (opcional) — visível direto, igual ao fechamento por turno -->
+      <div class="card" style="margin-top:16px;">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
+          <strong style="font-size:14px;">Repasse <span style="font-size:12px;color:var(--muted);font-weight:400;">(opcional — deixe 0 pra só ver os totais)</span></strong>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--orange-soft);border:1.5px solid var(--orange);border-radius:12px;padding:7px 14px;">
+            <span style="font-size:12px;color:var(--orange);font-weight:700;text-transform:uppercase;letter-spacing:0.3px;">% sobre a comissão recebida</span>
             <input type="text" id="fpPct" inputmode="decimal" placeholder="0" value=""
               style="width:58px;padding:5px 8px;border-radius:8px;border:1.5px solid var(--orange);background:var(--bg);color:var(--orange);font-size:16px;font-weight:800;text-align:center;">
             <span style="font-size:16px;color:var(--orange);font-weight:800;">%</span>
           </div>
         </div>
-        <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">Aplica a % sobre a comissão <strong>recebida</strong> dos produtos selecionados. Adicione um ou mais responsáveis pra repartir o valor (o split começa igual e é editável).</span>
+        <span style="font-size:11px;color:var(--muted);display:block;margin-bottom:8px;">A % incide sobre a comissão <strong>recebida</strong> (a que você recebeu do TikTok Shop, taxa da agência já descontada). Quer repartir entre pessoas? Adicione responsáveis abaixo (o split começa igual e é editável); senão, é só a %.</span>
         <datalist id="auxDatalist"></datalist>
         <div id="fpRespCell" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">
-          <input id="fpRespInput" list="auxDatalist" placeholder="Responsável (Enter)"
+          <input id="fpRespInput" list="auxDatalist" placeholder="Responsável (Enter) — opcional"
             onkeydown="if(event.key==='Enter'){event.preventDefault();fpRespAdd(this);}" onchange="fpRespAdd(this)" onblur="fpRespAdd(this)"
             style="border:1px solid var(--border);border-radius:8px;padding:6px 8px;background:var(--bg);color:var(--text);font-size:13px;flex:1;min-width:150px;">
         </div>
         <div id="fpRespSum" style="font-size:10px;margin-top:6px;"></div>
-      </details>
+      </div>
 
       <div class="wnav">
         <button class="btn-primary" onclick="fpCalcular()">Calcular →</button>

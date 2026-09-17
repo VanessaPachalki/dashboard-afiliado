@@ -222,12 +222,13 @@ function fpCalcular() {
   const orders = fpState.orders.filter(o => fpState.selected.has(o.product_name || '—'));
   if (!orders.length) return fpMsg('err', 'Nenhum pedido nos produtos selecionados.');
 
-  // agrega por produto
+  // agrega por produto (guarda os pedidos de cada um pra montar o breakdown de status)
   const map = {};
   orders.forEach(o => {
     const k = o.product_name || '—';
-    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, estimada: 0, recebida: 0, pendente: 0, liq: 0, inel: 0, itens: 0 };
+    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, estimada: 0, recebida: 0, pendente: 0, liq: 0, inel: 0, itens: 0, _orders: [] };
     const g = map[k];
+    g._orders.push(o);
     g.count++;
     g.gmv += parseFloat(o.gmv) || 0;
     g.itens += Number(o.items_sold) || 0;
@@ -237,7 +238,9 @@ function fpCalcular() {
     if (o.settlement_status === 1) g.inel++;
     if (st === 'pendente' || st === 'aguardando' || st === 'naopago') g.pendente += parseFloat(o.estimated_commission) || 0;
   });
-  const produtos = Object.values(map).sort((a, b) => b.estimada - a.estimada || b.gmv - a.gmv);
+  const produtos = Object.values(map)
+    .map(g => { g.dist = statusBreakdown(g._orders); delete g._orders; return g; })  // breakdown por produto
+    .sort((a, b) => b.estimada - a.estimada || b.gmv - a.gmv);
 
   const estimada = produtos.reduce((s, p) => s + p.estimada, 0);
   const recebida = produtos.reduce((s, p) => s + p.recebida, 0);
@@ -385,7 +388,7 @@ function fpReportData() {
     periodo: `${fpDate(fpState.from)} a ${fpDate(fpState.to)}`,
     pct: r.pct, pagar: r.pagar, estimada: r.estimada, recebida: r.recebida, pendente: r.pendente,
     total: r.total, statusDist: r.statusDist,
-    produtos: r.produtos.map(p => ({ name: p.name, estimada: p.estimada, recebida: p.recebida, gmv: p.gmv })),
+    produtos: r.produtos.map(p => ({ name: p.name, estimada: p.estimada, recebida: p.recebida, gmv: p.gmv, count: p.count, inel: p.inel, dist: p.dist })),
     responsaveis: r.responsaveis
   };
 }
@@ -498,29 +501,45 @@ function fpPdfBlob(g) {
     doc.text(pdfSafe(`Estimada ${fpBRL(g.estimada)} - recebida ${fpBRL(g.recebida)} - pendente ${fpBRL(g.pendente)} - ${g.total} pedidos`), 20, 81);
     doc.setDrawColor(220); doc.line(20, 86, 190, 86);
     let y = 95;
+    // ---- POR PRODUTO: valores + breakdown de status (número + %) ----
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120); doc.text('POR PRODUTO', 20, y); y += 7;
+    g.produtos.forEach(p => {
+      if (y > 262) { doc.addPage(); y = 20; }
+      const name = p.name.length > 72 ? p.name.slice(0, 71) + '...' : p.name;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(26); doc.text(pdfSafe(name), 20, y); y += 5.5;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(110);
+      doc.text(pdfSafe(`${p.count} pedidos - ${p.inel} inelegivel(is) - GMV ${fpBRL(p.gmv)}`), 20, y); y += 4.5;
+      doc.setTextColor(...orange); doc.setFont('helvetica', 'bold');
+      doc.text(pdfSafe(`comissao estimada ${fpBRL(p.estimada)} - recebida ${fpBRL(p.recebida)}`), 20, y); y += 5.5;
+      (p.dist.items || []).forEach(s => {
+        if (y > 288) { doc.addPage(); y = 20; }
+        const rgb = hexToRgb(s.hex);
+        doc.setFillColor(...rgb); doc.circle(27, y - 1.3, 1.3, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60); doc.text(pdfSafe(s.label), 31, y);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(40); doc.text(`${s.n}   ${pct1(s.pct)}`, 120, y, { align: 'right' });
+        y += 4.8;
+      });
+      y += 2.5; doc.setDrawColor(235); doc.line(20, y, 190, y); y += 6;
+    });
+    // ---- STATUS GERAL: consolidado de todos os produtos selecionados ----
     const dist = g.statusDist;
     if (dist && dist.items.length) {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120); doc.text('STATUS DOS PEDIDOS', 20, y); y += 7;
+      if (y > 255) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120); doc.text('STATUS GERAL (todos os produtos selecionados)', 20, y); y += 7;
       dist.items.forEach(s => {
+        if (y > 288) { doc.addPage(); y = 20; }
         const rgb = hexToRgb(s.hex);
         doc.setFillColor(...rgb); doc.circle(22, y - 1.4, 1.6, 'F');
         doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(40); doc.text(pdfSafe(s.label), 27, y);
         doc.setFont('helvetica', 'bold'); doc.text(`${s.n}   ${pct1(s.pct)}`, 190, y, { align: 'right' });
         y += 6.5;
       });
+      if (dist.inelegiveis > 0) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(pdfSafe(`Inelegiveis (${dist.inelegiveis}) = Cancelados + Devolucoes + Estornados - nao geram comissao`), 20, y); y += 5;
+      }
       doc.setDrawColor(220); doc.line(20, y + 1, 190, y + 1); y += 10;
     }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text('PRODUTO', 20, y); doc.text('GMV', 120, y, { align: 'right' }); doc.text('RECEBIDA', 155, y, { align: 'right' }); doc.text('ESTIMADA', 190, y, { align: 'right' }); y += 7;
-    g.produtos.forEach(p => {
-      if (y > 280) { doc.addPage(); y = 20; }
-      const name = p.name.length > 46 ? p.name.slice(0, 45) + '...' : p.name;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30); doc.text(pdfSafe(name), 20, y);
-      doc.setTextColor(110); doc.text(fpBRL(p.gmv), 120, y, { align: 'right' });
-      doc.setTextColor(60); doc.text(fpBRL(p.recebida), 155, y, { align: 'right' });
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(...orange); doc.text(fpBRL(p.estimada), 190, y, { align: 'right' });
-      y += 6.5;
-    });
     if (hasPag && g.responsaveis.length) {
       if (y > 265) { doc.addPage(); y = 20; }
       y += 6; doc.setDrawColor(220); doc.line(20, y, 190, y); y += 8;
