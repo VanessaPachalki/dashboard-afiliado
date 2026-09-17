@@ -90,15 +90,16 @@ async function fpCarregar() {
   const map = {};
   all.forEach(o => {
     const k = (o.product_name || '—');
-    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, recebida: 0 };
+    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, estimada: 0, recebida: 0 };
     map[k].count++;
     map[k].gmv += parseFloat(o.gmv) || 0;
+    map[k].estimada += parseFloat(o.estimated_commission) || 0;  // comissão da venda (todos os pedidos)
     if (o.settlement_status === 0) map[k].recebida += parseFloat(o.received_commission) || 0;
   });
   fpState = {
     ...fpState,
     accountId: accId, hostName, from, to, orders: all,
-    products: Object.values(map).sort((a, b) => b.recebida - a.recebida || b.gmv - a.gmv),
+    products: Object.values(map).sort((a, b) => b.estimada - a.estimada || b.gmv - a.gmv),
     selected: new Set()
   };
 
@@ -109,11 +110,17 @@ async function fpCarregar() {
   fpRenderResp();
 }
 
+// casa por PARTE do nome: quebra a busca em palavras e exige todas (qualquer ordem).
+// ex.: "tablet e19" acha "Tablet Positivo E19 Preto".
+function fpMatch(text, q) {
+  const terms = q.split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+  const t = (text || '').toLowerCase();
+  return terms.every(term => t.includes(term));
+}
 function fpFilteredProducts() {
   const q = (document.getElementById('fpProdSearch')?.value || '').toLowerCase().trim();
-  let list = fpState.products;
-  if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
-  return list;
+  return q ? fpState.products.filter(p => fpMatch(p.name, q)) : fpState.products;
 }
 
 function fpRenderProducts() {
@@ -127,7 +134,7 @@ function fpRenderProducts() {
       <input type="checkbox" ${on ? 'checked' : ''} onchange="fpToggleProduct(this.getAttribute('data-n'))" data-n="${escAttr(p.name)}" style="width:16px;height:16px;flex:none;">
       <span style="flex:1;min-width:0;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.name)}</span>
       <span style="font-size:11px;color:var(--muted);white-space:nowrap;">${p.count} ped.</span>
-      <span style="font-size:11px;color:var(--orange);font-weight:700;white-space:nowrap;">${fpBRL(p.recebida)}</span>
+      <span style="font-size:11px;color:var(--orange);font-weight:700;white-space:nowrap;" title="comissão estimada">${fpBRL(p.estimada)}</span>
     </label>`;
   }).join('');
   const more = list.length > shown.length ? `<div style="padding:8px 12px;font-size:11px;color:var(--muted);">+ ${list.length - shown.length} produto(s) — refine a busca.</div>` : '';
@@ -219,18 +226,20 @@ function fpCalcular() {
   const map = {};
   orders.forEach(o => {
     const k = o.product_name || '—';
-    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, recebida: 0, pendente: 0, liq: 0, inel: 0, itens: 0 };
+    if (!map[k]) map[k] = { name: k, count: 0, gmv: 0, estimada: 0, recebida: 0, pendente: 0, liq: 0, inel: 0, itens: 0 };
     const g = map[k];
     g.count++;
     g.gmv += parseFloat(o.gmv) || 0;
     g.itens += Number(o.items_sold) || 0;
+    g.estimada += parseFloat(o.estimated_commission) || 0;  // comissão da venda (todos os pedidos)
     const st = granularStatus(o);
     if (o.settlement_status === 0) { g.recebida += parseFloat(o.received_commission) || 0; g.liq++; }
     if (o.settlement_status === 1) g.inel++;
     if (st === 'pendente' || st === 'aguardando' || st === 'naopago') g.pendente += parseFloat(o.estimated_commission) || 0;
   });
-  const produtos = Object.values(map).sort((a, b) => b.recebida - a.recebida || b.gmv - a.gmv);
+  const produtos = Object.values(map).sort((a, b) => b.estimada - a.estimada || b.gmv - a.gmv);
 
+  const estimada = produtos.reduce((s, p) => s + p.estimada, 0);
   const recebida = produtos.reduce((s, p) => s + p.recebida, 0);
   const pendente = produtos.reduce((s, p) => s + p.pendente, 0);
   const gmv = produtos.reduce((s, p) => s + p.gmv, 0);
@@ -245,7 +254,7 @@ function fpCalcular() {
 
   fpState.pct = pct;
   fpState.result = {
-    produtos, orders, recebida, pendente, gmv, pct, pagar, responsaveis,
+    produtos, orders, estimada, recebida, pendente, gmv, pct, pagar, responsaveis,
     statusDist: statusBreakdown(orders),
     total: orders.length
   };
@@ -267,7 +276,7 @@ function fpRenderResults() {
     ? ` · repasse <strong>${r.pct}%</strong> · a pagar <strong style="color:var(--orange);">${fpBRL(r.pagar)}</strong>` : '';
   document.getElementById('fpResultInfo').innerHTML =
     `<strong>${fpState.selected.size}</strong> produto(s) · <strong>${hostStr}</strong> · ${fpDate(fpState.from)} a ${fpDate(fpState.to)}
-     <br>comissão recebida <strong style="color:var(--green);">${fpBRL(r.recebida)}</strong> · pendente ${fpBRL(r.pendente)} · GMV ${fpBRL(r.gmv)} · ${r.total} pedidos${repasseLine}
+     <br>comissão estimada <strong style="color:var(--orange);">${fpBRL(r.estimada)}</strong> · recebida <strong style="color:var(--green);">${fpBRL(r.recebida)}</strong> · pendente ${fpBRL(r.pendente)} · GMV ${fpBRL(r.gmv)} · ${r.total} pedidos${repasseLine}
      <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;">${chips}</div>`;
 
   // tabela por produto
@@ -278,7 +287,8 @@ function fpRenderResults() {
       <td class="r">${p.liq}</td>
       <td class="r">${p.inel}</td>
       <td class="r">${fpBRL(p.gmv)}</td>
-      <td class="r"><strong style="color:var(--green);">${fpBRL(p.recebida)}</strong></td>
+      <td class="r"><strong style="color:var(--orange);">${fpBRL(p.estimada)}</strong></td>
+      <td class="r" style="color:var(--green);">${fpBRL(p.recebida)}</td>
       <td class="r" style="color:var(--muted);">${fpBRL(p.pendente)}</td>
       ${showPagar ? `<td class="r"><strong style="color:var(--orange);">${fpBRL(p.recebida * r.pct / 100)}</strong></td>` : ''}
     </tr>`).join('');
@@ -288,12 +298,13 @@ function fpRenderResults() {
       <td class="r">${r.produtos.reduce((s, p) => s + p.liq, 0)}</td>
       <td class="r">${r.produtos.reduce((s, p) => s + p.inel, 0)}</td>
       <td class="r">${fpBRL(r.gmv)}</td>
+      <td class="r" style="color:var(--orange);">${fpBRL(r.estimada)}</td>
       <td class="r" style="color:var(--green);">${fpBRL(r.recebida)}</td>
       <td class="r" style="color:var(--muted);">${fpBRL(r.pendente)}</td>
       ${showPagar ? `<td class="r" style="color:var(--orange);">${fpBRL(r.pagar)}</td>` : ''}
     </tr>`;
   let html = `<div style="overflow-x:auto;"><table class="escala-table">
-    <thead><tr><th>Produto</th><th class="r">Ped.</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">GMV</th><th class="r">Recebida</th><th class="r">Pendente</th>${showPagar ? '<th class="r">A pagar</th>' : ''}</tr></thead>
+    <thead><tr><th>Produto</th><th class="r">Ped.</th><th class="r">Liq.</th><th class="r">Inel.</th><th class="r">GMV</th><th class="r" title="comissão da venda (todos os pedidos)">Estimada</th><th class="r">Recebida</th><th class="r">Pendente</th>${showPagar ? '<th class="r">A pagar</th>' : ''}</tr></thead>
     <tbody>${body}${totRow}</tbody></table></div>`;
 
   // repasse por responsável
@@ -321,7 +332,7 @@ function fpRenderDetail() {
   const statusFilter = document.getElementById('fpDetailStatus')?.value || '';
   let list = fpState.detail || [];
   if (statusFilter) list = list.filter(o => granularStatus(o) === statusFilter);
-  if (q) list = list.filter(o => (o.product_name || '').toLowerCase().includes(q) || (o.store_name || '').toLowerCase().includes(q));
+  if (q) list = list.filter(o => fpMatch(o.product_name || '', q) || fpMatch(o.store_name || '', q));
   // ordena por status lógico, depois data
   list = list.slice().sort((a, b) => {
     const sa = (typeof STATUS_ORDER !== 'undefined' && STATUS_ORDER[granularStatus(a)]) ?? 9;
@@ -372,9 +383,9 @@ function fpReportData() {
     title: 'Fechamento por produto',
     host: hostStr,
     periodo: `${fpDate(fpState.from)} a ${fpDate(fpState.to)}`,
-    pct: r.pct, pagar: r.pagar, recebida: r.recebida, pendente: r.pendente,
+    pct: r.pct, pagar: r.pagar, estimada: r.estimada, recebida: r.recebida, pendente: r.pendente,
     total: r.total, statusDist: r.statusDist,
-    produtos: r.produtos.map(p => ({ name: p.name, recebida: p.recebida, gmv: p.gmv })),
+    produtos: r.produtos.map(p => ({ name: p.name, estimada: p.estimada, recebida: p.recebida, gmv: p.gmv })),
     responsaveis: r.responsaveis
   };
 }
@@ -408,11 +419,11 @@ function fpImagemBlob(g) {
   y += 40; ctx.fillStyle = '#8a8a92'; ctx.font = '400 26px system-ui, sans-serif'; ctx.fillText(`${g.host} · ${g.periodo}`, PAD, y);
   y += 46; divider(y);
   y += 78; ctx.fillStyle = '#8a8a92'; ctx.font = '700 26px system-ui, sans-serif';
-  ctx.fillText(hasPag ? `TOTAL A PAGAR · repasse ${g.pct}%` : 'COMISSÃO RECEBIDA', PAD, y);
+  ctx.fillText(hasPag ? `TOTAL A PAGAR · repasse ${g.pct}%` : 'COMISSÃO ESTIMADA', PAD, y);
   y += 104; ctx.fillStyle = brand; ctx.font = '800 100px system-ui, sans-serif';
-  ctx.fillText(fpBRL(hasPag ? g.pagar : g.recebida), PAD, y);
+  ctx.fillText(fpBRL(hasPag ? g.pagar : g.estimada), PAD, y);
   y += 44; ctx.fillStyle = '#8a8a92'; ctx.font = '400 24px system-ui, sans-serif';
-  ctx.fillText(`Recebida ${fpBRL(g.recebida)} · pendente ${fpBRL(g.pendente)} · ${g.total} pedidos`, PAD, y);
+  ctx.fillText(`Estimada ${fpBRL(g.estimada)} · recebida ${fpBRL(g.recebida)} · pendente ${fpBRL(g.pendente)} · ${g.total} pedidos`, PAD, y);
   y += 44; divider(y);
 
   const dist = g.statusDist;
@@ -432,14 +443,14 @@ function fpImagemBlob(g) {
   }
 
   y += 54; ctx.fillStyle = '#8a8a92'; ctx.font = '700 22px system-ui, sans-serif';
-  ctx.textAlign = 'left'; ctx.fillText('PRODUTO', PAD, y); ctx.textAlign = 'right'; ctx.fillText('RECEBIDA', W - PAD, y); ctx.textAlign = 'left';
+  ctx.textAlign = 'left'; ctx.fillText('PRODUTO', PAD, y); ctx.textAlign = 'right'; ctx.fillText('COMISSÃO EST.', W - PAD, y); ctx.textAlign = 'left';
   g.produtos.slice(0, 40).forEach(p => {
     y += 56;
     ctx.fillStyle = '#1a1a1e'; ctx.font = '600 26px system-ui, sans-serif'; ctx.textAlign = 'left';
     const name = p.name.length > 46 ? p.name.slice(0, 45) + '…' : p.name;
     ctx.fillText(name, PAD, y);
-    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)}`, PAD, y + 24);
-    ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '700 28px system-ui, sans-serif'; ctx.fillText(fpBRL(p.recebida), W - PAD, y);
+    ctx.fillStyle = '#8a8a92'; ctx.font = '400 20px system-ui, sans-serif'; ctx.fillText(`GMV ${fpBRL(p.gmv)} · recebida ${fpBRL(p.recebida)}`, PAD, y + 24);
+    ctx.textAlign = 'right'; ctx.fillStyle = brand; ctx.font = '700 28px system-ui, sans-serif'; ctx.fillText(fpBRL(p.estimada), W - PAD, y);
     ctx.textAlign = 'left';
     ctx.strokeStyle = '#f2f2f5'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PAD, y + 36); ctx.lineTo(W - PAD, y + 36); ctx.stroke();
   });
@@ -481,10 +492,10 @@ function fpPdfBlob(g) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(26); doc.text(pdfSafe(g.title), 20, 40);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(120); doc.text(pdfSafe(`${g.host} - ${g.periodo}`), 20, 47);
     doc.setDrawColor(220); doc.line(20, 52, 190, 52);
-    doc.setFontSize(10); doc.setTextColor(120); doc.text(hasPag ? `TOTAL A PAGAR - repasse ${g.pct}%` : 'COMISSAO RECEBIDA', 20, 62);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fpBRL(hasPag ? g.pagar : g.recebida), 20, 74);
+    doc.setFontSize(10); doc.setTextColor(120); doc.text(hasPag ? `TOTAL A PAGAR - repasse ${g.pct}%` : 'COMISSAO ESTIMADA', 20, 62);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(26); doc.setTextColor(...orange); doc.text(fpBRL(hasPag ? g.pagar : g.estimada), 20, 74);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text(pdfSafe(`Recebida ${fpBRL(g.recebida)} - pendente ${fpBRL(g.pendente)} - ${g.total} pedidos`), 20, 81);
+    doc.text(pdfSafe(`Estimada ${fpBRL(g.estimada)} - recebida ${fpBRL(g.recebida)} - pendente ${fpBRL(g.pendente)} - ${g.total} pedidos`), 20, 81);
     doc.setDrawColor(220); doc.line(20, 86, 190, 86);
     let y = 95;
     const dist = g.statusDist;
@@ -500,13 +511,14 @@ function fpPdfBlob(g) {
       doc.setDrawColor(220); doc.line(20, y + 1, 190, y + 1); y += 10;
     }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(120);
-    doc.text('PRODUTO', 20, y); doc.text('GMV', 140, y, { align: 'right' }); doc.text('RECEBIDA', 190, y, { align: 'right' }); y += 7;
+    doc.text('PRODUTO', 20, y); doc.text('GMV', 120, y, { align: 'right' }); doc.text('RECEBIDA', 155, y, { align: 'right' }); doc.text('ESTIMADA', 190, y, { align: 'right' }); y += 7;
     g.produtos.forEach(p => {
       if (y > 280) { doc.addPage(); y = 20; }
-      const name = p.name.length > 60 ? p.name.slice(0, 59) + '...' : p.name;
+      const name = p.name.length > 46 ? p.name.slice(0, 45) + '...' : p.name;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(30); doc.text(pdfSafe(name), 20, y);
-      doc.setTextColor(110); doc.text(fpBRL(p.gmv), 140, y, { align: 'right' });
-      doc.setFont('helvetica', 'bold'); doc.setTextColor(...orange); doc.text(fpBRL(p.recebida), 190, y, { align: 'right' });
+      doc.setTextColor(110); doc.text(fpBRL(p.gmv), 120, y, { align: 'right' });
+      doc.setTextColor(60); doc.text(fpBRL(p.recebida), 155, y, { align: 'right' });
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...orange); doc.text(fpBRL(p.estimada), 190, y, { align: 'right' });
       y += 6.5;
     });
     if (hasPag && g.responsaveis.length) {
