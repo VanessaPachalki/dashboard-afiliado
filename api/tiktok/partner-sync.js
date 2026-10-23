@@ -101,8 +101,8 @@ function mapSkuOrder(so, matrizUid, uploadId) {
 
 const TOKEN_HOST = 'https://auth.tiktok-shops.com';
 const API_HOST = 'https://open-api.tiktokglobalshop.com';
-const CAP_ORDER_PATH = '/affiliate_partner/202504/cap_order/search';   // scope: partner.cap_orders.read (nao existe 202603)
-const TAP_ORDER_PATH = '/affiliate_partner/202411/orders/search';      // scope: partner.tap_campaign.read (nao existe 202603)
+const CAP_ORDER_PATH = '/affiliate_partner/202603/cap_order/search';   // scope: partner.cap_orders.read (versao validada 07/09; OAS empacotado 202504 e velho)
+const TAP_ORDER_PATH = '/affiliate_partner/202603/orders/search';      // scope: partner.tap_campaign.read
 
 // HMAC-SHA256: base = app_secret + path + {sortedKey}{value}... (+ body cru) + app_secret
 function signRequest(path, queryParams, bodyStr, appSecret) {
