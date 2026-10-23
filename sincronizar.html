@@ -166,7 +166,15 @@ async function importDays() {
       let url = `/api/tiktok/partner-sync?${base}`;
       if (pt) url += `&page_token=${encodeURIComponent(pt)}&cipher=${encodeURIComponent(ci)}&endpoint=${encodeURIComponent(ep)}`;
       const j = await (await fetch(url, { headers: authHeaders })).json();
-      if (!j.ok) { set('msg-err', 'Erro: ' + (j.message || j.error || '') + (j.code ? ` [${j.code}]` : '')); return; }
+      if (!j.ok) {
+        let extra = '';
+        if (j.assets) extra += `\n\nCategorias: ${j.assets.total} total | mercados: ${(j.assets.markets||[]).join(', ')} | token_refreshed: ${j.assets.token_refreshed}` + (j.assets.ca_code ? ` | category_assets code ${j.assets.ca_code}: ${j.assets.ca_message||''}` : '') + (j.assets.categories && j.assets.categories.length ? `\nnomes: ${j.assets.categories.join(', ')}` : '');
+        if (Array.isArray(j.tried) && j.tried.length) extra += '\n\nProbes:\n' + j.tried.map(t => `• ${t.endpoint}/${t.category}: code ${t.code}${t.message ? ' — ' + t.message : (t.count != null ? ' (count ' + t.count + ')' : '')}`).join('\n');
+        set('msg-err', 'Erro: ' + (j.message || j.error || '') + (j.code ? ` [${j.code}]` : '') + extra);
+        if (msg) { msg.style.whiteSpace = 'pre-wrap'; msg.style.textAlign = 'left'; }
+        if (extra && console) console.error('partner-sync diag:', j);
+        return;
+      }
       grand += j.imported || 0; ci = j.cipher || ci; ep = j.endpoint || ep;
       if (j.total_disponivel != null) td = j.total_disponivel; b++;
       set('', `Importando... ${grand.toLocaleString('pt-BR')}${td ? ' de ~' + td.toLocaleString('pt-BR') : ''} (lote ${b})`);

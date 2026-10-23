@@ -320,7 +320,9 @@ async function getCategoryAssets(accessToken) {
   const caj = await (await fetch(`${API_HOST}${path}?${qs}`, {
     headers: { 'content-type': 'application/json', 'x-tts-access-token': accessToken }
   })).json();
-  return (caj && caj.data && caj.data.category_assets) || [];
+  const assets = (caj && caj.data && caj.data.category_assets) || [];
+  // devolve tb o cru pra diagnostico (code/message da TikTok + markets vistos)
+  return { assets, code: caj && caj.code, message: caj && caj.message, request_id: caj && caj.request_id };
 }
 
 // pega o id da agência BRX (todos os dados são filtrados por agency_id)
@@ -406,12 +408,22 @@ export default async function handler(req, res) {
     // pulando a descoberta. Na 1ª chamada, descobre a categoria certa.
     let orderPath, endpoint, cipher, winCategory = null, winCount = null;
     const tried = [];
+    let assetDiag = null;
     if (req.query.cipher && (req.query.endpoint === 'cap' || req.query.endpoint === 'tap')) {
       cipher = req.query.cipher;
       endpoint = req.query.endpoint;
       orderPath = endpoint === 'tap' ? TAP_ORDER_PATH : CAP_ORDER_PATH;
     } else {
-      const assets = (await getCategoryAssets(accessToken))
+      const ca = await getCategoryAssets(accessToken);
+      const allAssets = ca.assets || [];
+      assetDiag = {
+        total: allAssets.length,
+        markets: [...new Set(allAssets.map(a => String(a.target_market || '?')))],
+        categories: allAssets.map(a => (a.category && a.category.name) || '?').slice(0, 20),
+        ca_code: ca.code, ca_message: ca.message, ca_request_id: ca.request_id,
+        token_refreshed: accessToken !== part.access_token
+      };
+      const assets = allAssets
         .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
       const PRIORITY = [
         'Affiliate Management', 'Seller and Scalable Creator Match-Up',
@@ -444,7 +456,7 @@ export default async function handler(req, res) {
       }
       if (!cipher && fallback) { orderPath = fallback.path; endpoint = fallback.tag; cipher = fallback.cipher; winCategory = fallback.cat; }
       if (!cipher) {
-        return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried });
+        return res.status(502).json({ error: 'nenhuma categoria/cipher funcionou nos endpoints de pedidos', tried, assets: assetDiag });
       }
       if (cipher !== part.category_asset_cipher) {
         await sb('tiktok_partner?id=eq.1', {
