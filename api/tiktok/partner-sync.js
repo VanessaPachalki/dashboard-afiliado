@@ -429,7 +429,8 @@ export default async function handler(req, res) {
         markets: [...new Set(allAssets.map(a => String(a.target_market || '?')))],
         categories: allAssets.map(a => (a.category && a.category.name) || '?').slice(0, 20),
         ca_code: ca.code, ca_message: ca.message, ca_request_id: ca.request_id,
-        token_refreshed: accessToken !== part.access_token
+        token_refreshed: accessToken !== part.access_token,
+        scopes: part.scopes || '(nenhum escopo salvo)'
       };
       const assets = allAssets
         .filter(a => String(a.target_market || '').toUpperCase() === 'BR');
