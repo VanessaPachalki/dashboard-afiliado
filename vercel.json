@@ -2,6 +2,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": null,
+  "crons": [
+    { "path": "/api/tiktok/partner-sync", "schedule": "0 6 * * *" }
+  ],
   "headers": [
     {
       "source": "/js/(.*)",

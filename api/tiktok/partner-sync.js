@@ -25,7 +25,7 @@ const CONTENT_TYPE_MAP = { LIVE: 0, VIDEO: 1, SHOWCASE: 3, PRODUCT_CARD: 2 };
 
 function mapStatus(s) {
   const u = String(s || '').toUpperCase();
-  // 202603 cap_order: SETTLED | PENDING | INELIGIBLE | CUSTOMER UNPAID | FROZEN
+  // cap_order settle_status: SETTLED | PENDING | INELIGIBLE | CUSTOMER UNPAID | FROZEN
   if (u.includes('INELIGIBLE')) return 1;          // inelegível (reembolso/cancelado)
   if (u.includes('SETTLED')) return 0;             // liquidado
   if (u.includes('UNPAID')) return 3;              // cliente não pagou = aguardando
@@ -101,8 +101,8 @@ function mapSkuOrder(so, matrizUid, uploadId) {
 
 const TOKEN_HOST = 'https://auth.tiktok-shops.com';
 const API_HOST = 'https://open-api.tiktokglobalshop.com';
-const CAP_ORDER_PATH = '/affiliate_partner/202603/cap_order/search';   // scope: partner.cap_orders.read
-const TAP_ORDER_PATH = '/affiliate_partner/202603/orders/search';      // scope: partner.tap_campaign.read
+const CAP_ORDER_PATH = '/affiliate_partner/202504/cap_order/search';   // scope: partner.cap_orders.read (nao existe 202603)
+const TAP_ORDER_PATH = '/affiliate_partner/202411/orders/search';      // scope: partner.tap_campaign.read (nao existe 202603)
 
 // HMAC-SHA256: base = app_secret + path + {sortedKey}{value}... (+ body cru) + app_secret
 function signRequest(path, queryParams, bodyStr, appSecret) {
@@ -139,6 +139,111 @@ async function sb(path, opts = {}) {
       apikey: key, Authorization: `Bearer ${key}`,
       'content-type': 'application/json', ...(opts.headers || {})
     }
+  });
+}
+
+// ============================================================
+// CRON — rotina automática (background). A Vercel chama este mesmo endpoint
+// num horário e manda "Authorization: Bearer $CRON_SECRET". Aqui decidimos
+// quais dias da janela D+60 re-puxar (iguais à regra do front: faltando ou
+// ainda pendentes) e sincronizamos EM BLOCOS, 100% paginados por dentro.
+// ============================================================
+const CRON_WINDOW_DAYS = 60;   // janela de atualização da TikTok
+const CRON_BLOCK_DAYS = 3;     // tamanho do bloco
+const CRON_BUDGET_MS = 250000; // folga do limite de 300s da função
+
+function cronAuthed(req) {
+  const s = process.env.CRON_SECRET;
+  return !!s && req.headers.authorization === `Bearer ${s}`;
+}
+function brToday() { // hoje em America/Sao_Paulo (YYYY-MM-DD)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+function isoShift(iso, delta) {
+  const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + delta);
+  return d.toISOString().slice(0, 10);
+}
+function dayGe(iso) { return Math.floor(new Date(iso + 'T00:00:00-03:00').getTime() / 1000); } // 00:00 Brasília -> unix
+function cronBlocks(days, n) { // dias contíguos -> blocos de no máx n
+  const sorted = [...new Set(days)].sort();
+  const out = []; let cur = null;
+  for (const day of sorted) {
+    if (cur && day === isoShift(cur.to, 1) && cur.len < n) { cur.to = day; cur.len++; }
+    else { cur = { from: day, to: day, len: 1 }; out.push(cur); }
+  }
+  return out.map(b => ({ from: b.from, to: b.to }));
+}
+
+async function runCron(res, ctx) {
+  const { accessToken, part, agencyId, matrizUid, uploadId, resolveAccount } = ctx;
+  const cipher = part.category_asset_cipher;
+  if (!cipher) return res.status(400).json({ error: 'cron: sem category_asset_cipher — rode um sync manual 1x antes' });
+
+  // 1) quais dias precisam de sync (regra igual à do front)
+  const today = brToday();
+  const from60 = isoShift(today, -CRON_WINDOW_DAYS);
+  const fresh = [0, 1, 2].map(i => isoShift(today, -i)); // últimos 3 dias: sempre (pega pedido novo)
+  let days;
+  try {
+    const rr = await (await sb('rpc/fech_days', { method: 'POST', body: JSON.stringify({ p_from: from60, p_to: today, p_agency: agencyId }) })).json();
+    const stale = (Array.isArray(rr) ? rr : []).filter(r => (Number(r.pendentes) || 0) > 0).map(r => r.order_date);
+    days = [...new Set([...fresh, ...stale])].sort();
+  } catch (_) {
+    days = [0, 1, 2, 3, 4, 5, 6].map(i => isoShift(today, -i)).sort(); // fallback: últimos 7 dias
+  }
+
+  // 2) endpoint certo (cap/tap) com o cipher salvo — 1 probe barato
+  let orderPath = CAP_ORDER_PATH, endpoint = 'cap';
+  {
+    const pge = dayGe(isoShift(today, -2)), plt = dayGe(isoShift(today, 1));
+    let p = await signedPost(CAP_ORDER_PATH, { category_asset_cipher: cipher, page_size: '1' }, { create_time_ge: pge, create_time_lt: plt }, accessToken);
+    if (p.code && p.code !== 0) {
+      p = await signedPost(TAP_ORDER_PATH, { category_asset_cipher: cipher, page_size: '1' }, { create_time_ge: pge, create_time_lt: plt }, accessToken);
+      if (!p.code || p.code === 0) { orderPath = TAP_ORDER_PATH; endpoint = 'tap'; }
+    }
+  }
+
+  // 3) blocos de 3 dias, cada um 100% paginado
+  const blocks = cronBlocks(days, CRON_BLOCK_DAYS);
+  const upsert = payload => sb('orders?on_conflict=user_id,tiktok_order_id,sku_id', {
+    method: 'POST', headers: { Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(payload)
+  });
+  const started = Date.now();
+  let imported = 0, blocksDone = 0, stopped = null;
+  for (const blk of blocks) {
+    if (Date.now() - started > CRON_BUDGET_MS) { stopped = `tempo: parou antes de ${blk.from}`; break; }
+    const ge = dayGe(blk.from), lt = dayGe(isoShift(blk.to, 1));
+    let pageToken = '', pages = 0;
+    while (pages < 300) {
+      if (Date.now() - started > CRON_BUDGET_MS) { stopped = `tempo: ${blk.from} na página ${pages}`; break; }
+      const query = { category_asset_cipher: cipher, page_size: '100', ...(pageToken ? { page_token: pageToken } : {}) };
+      const data = await signedPost(orderPath, query, { create_time_ge: ge, create_time_lt: lt }, accessToken);
+      if (data.code && data.code !== 0) { stopped = `erro ${blk.from}: ${data.code} ${data.message || ''}`; break; }
+      const list = (data.data && (data.data.sku_orders || data.data.orders)) || [];
+      const rows = list.map(o => mapSkuOrder(o, matrizUid, uploadId));
+      for (const r of rows) { r.account_id = await resolveAccount(r.creator_username); r.agency_id = agencyId; }
+      if (rows.length) {
+        let up = await upsert(rows);
+        if (!up.ok) {
+          const txt = await up.text();
+          if (/column .* does not exist/i.test(txt)) {
+            const slim = rows.map(({ order_status, returned_quantity, refunded_quantity, attribution_type, ...r }) => r);
+            up = await upsert(slim);
+          }
+        }
+        if (up.ok) imported += rows.length;
+      }
+      pageToken = (data.data && data.data.next_page_token) || '';
+      pages++;
+      if (!pageToken) break;
+    }
+    blocksDone++;
+    if (stopped) break;
+  }
+  await sb(`uploads?id=eq.${uploadId}`, { method: 'PATCH', body: JSON.stringify({ uploaded_at: new Date().toISOString() }) });
+  return res.status(200).json({
+    ok: true, cron: true, endpoint, imported, blocks: blocks.length, blocksDone,
+    window: { from: from60, to: today }, days: days.length, stopped
   });
 }
 
@@ -255,8 +360,17 @@ function makeAccountResolver(matrizUid, agencyId) {
 export default async function handler(req, res) {
   try {
     const matriz = await authedMatriz(req);
-    if (!matriz) return res.status(401).json({ error: 'não autorizado' });
-    const matrizUid = matriz.id; // dono dos pedidos = usuário autenticado (não confia no query)
+    const isCron = !matriz && cronAuthed(req);
+    if (!matriz && !isCron) return res.status(401).json({ error: 'não autorizado' });
+
+    // dono dos pedidos: matriz logada usa o próprio uid; cron resolve por env
+    // SYNC_OWNER_UID (fallback: dono do upload __tiktok_partner__ já existente).
+    let matrizUid = matriz ? matriz.id : (process.env.SYNC_OWNER_UID || null);
+    if (isCron && !matrizUid) {
+      const up = await (await sb('uploads?filename=eq.__tiktok_partner__&select=user_id&limit=1')).json();
+      matrizUid = (Array.isArray(up) && up[0] && up[0].user_id) || null;
+    }
+    if (!matrizUid) return res.status(400).json({ error: 'cron: defina SYNC_OWNER_UID (uid da matriz)' });
 
     // 1) conexão partner (token + cipher)
     const parts = await (await sb('tiktok_partner?id=eq.1&select=*')).json();
@@ -278,6 +392,9 @@ export default async function handler(req, res) {
     if (!upl.id) return res.status(500).json({ error: upl.error || 'falha ao criar upload' });
     const uploadId = upl.id;
     const resolveAccount = makeAccountResolver(matrizUid, agencyId);
+
+    // CRON: rotina automática decide os dias e sincroniza em blocos, sozinha.
+    if (isCron) return await runCron(res, { accessToken, part, agencyId, matrizUid, uploadId, resolveAccount });
 
     // 4) janela de tempo (default últimos 60 dias)
     const nowSec = Math.floor(Date.now() / 1000);
