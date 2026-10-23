@@ -380,11 +380,13 @@ export default async function handler(req, res) {
     if (!part || !part.access_token) return res.status(404).json({ error: 'sem conexão partner — autorize primeiro' });
     if (!part.category_asset_cipher) return res.status(400).json({ error: 'sem category_asset_cipher' });
 
-    // 2) token válido? senão refresh
+    // 2) token válido? senão refresh. Dispara tb quando access_expire_at
+    // está ausente (null) — senão usaria um access_token já expirado (105002).
     let accessToken = part.access_token;
-    if (part.access_expire_at && new Date(part.access_expire_at).getTime() < Date.now() + 60000) {
+    const expMs = part.access_expire_at ? new Date(part.access_expire_at).getTime() : 0;
+    if (!part.access_expire_at || expMs < Date.now() + 60000) {
       accessToken = await refreshPartnerToken(part);
-      if (!accessToken) return res.status(401).json({ error: 'refresh falhou — reautorize o partner' });
+      if (!accessToken) return res.status(401).json({ error: 'refresh falhou — o refresh_token também expirou. Reautorize o partner (TikTok) 1x.' });
     }
 
     // 3) agência BRX + upload bucket + resolvedor de conta por creator
@@ -414,7 +416,13 @@ export default async function handler(req, res) {
       endpoint = req.query.endpoint;
       orderPath = endpoint === 'tap' ? TAP_ORDER_PATH : CAP_ORDER_PATH;
     } else {
-      const ca = await getCategoryAssets(accessToken);
+      let ca = await getCategoryAssets(accessToken);
+      // credenciais expiradas apesar do guard (ex: access_expire_at gravado
+      // no futuro): força refresh 1x e refaz a chamada.
+      if (ca.code === 105002) {
+        const t = await refreshPartnerToken(part);
+        if (t) { accessToken = t; ca = await getCategoryAssets(accessToken); }
+      }
       const allAssets = ca.assets || [];
       assetDiag = {
         total: allAssets.length,
